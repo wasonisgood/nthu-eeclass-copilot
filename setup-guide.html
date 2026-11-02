@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eeclass 全能助手 - 擴充功能安裝與識別引導</title>
+    <link rel="stylesheet" href="consent.css">
+    <style>
+        .step-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: #ffffff;
+            padding: 18px 20px;
+            margin-bottom: 14px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            transition: all 0.2s ease;
+        }
+        .step-card.active {
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 0 1px var(--primary-purple);
+        }
+        .step-card.completed {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+        .step-badge {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            color: var(--text-secondary);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .step-card.active .step-badge {
+            background: var(--primary-purple);
+            color: #ffffff;
+        }
+        .step-card.completed .step-badge {
+            background: #16a34a;
+            color: #ffffff;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .step-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        .code-box {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12.5px;
+            margin: 8px 0;
+            user-select: all;
+            word-break: break-all;
+            color: #1f2937;
+        }
+        .step-action-row {
+            margin-top: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .guide-steps-list {
+            margin-left: 20px;
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.7;
+            margin-top: 6px;
+        }
+        .status-box {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px 16px;
+            background: #fafafa;
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .status-dot-pulse {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #9ca3af;
+            flex-shrink: 0;
+        }
+        .status-dot-pulse.active {
+            background: #eab308;
+            box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.2);
+            animation: pulse-ring 1.6s infinite ease-out;
+        }
+        .status-dot-pulse.success {
+            background: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .status-content-title {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .status-content-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .detected-ext-card {
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-top: 12px;
+        }
+        .detected-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 12px;
+            font-size: 12.5px;
+            margin-top: 6px;
+        }
+        .detected-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .detected-val {
+            color: #1f2937;
+            font-weight: 600;
+            word-break: break-all;
+        }
+        .ext-list-drawer {
+            margin-top: 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+        .ext-list-header {
+            padding: 10px 14px;
+            background: #f9fafb;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .ext-list-content {
+            max-height: 220px;
+            overflow-y: auto;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+        }
+        .ext-list-item {
+            padding: 8px 14px;
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ext-list-item.is-eeclass {
+            background: rgba(159, 95, 165, 0.08);
+            border-left: 3px solid var(--primary-purple);
+        }
+    </style>
+</head>
+<body>
+    <div class="consent-container" style="max-width: 740px;">
+        <header class="consent-header">
+            <div class="header-logo-area">
+                <svg class="header-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                    <path d="M2 17l10 5 10-5"></path>
+                    <path d="M2 12l10 5 10-5"></path>
+                </svg>
+                <div class="header-titles">
+                    <h1 class="header-title">eeclass 全能助手</h1>
+                    <span class="header-subtitle">擴充功能安裝與識別引導</span>
+                </div>
+            </div>
+            <div class="header-security-badge" id="setup-status-badge">
+                <span class="status-dot"></span>
+                <span id="setup-status-text">正在探測本機 Chrome 擴充功能...</span>
+            </div>
+        </header>
+
+        <div class="notice-banner">
+            <span>依據安全授權規範，使用 Claude Desktop MCP 前需完成瀏覽器擴充功能就緒與課程身份掃描。</span>
+        </div>
+
+        <main class="consent-body">
+            <!-- 步驟 1：取得擴充功能原始碼 -->
+            <div class="step-card" id="step-1-card">
+                <div class="step-badge" id="step-1-badge">1</div>
+                <div class="step-content">
+                    <h2 class="step-title">步驟一：取得擴充功能目錄</h2>
+                    <p class="step-desc">擴充套件已在您的本機電腦就緒。您可以直接在檔案總管開啟目錄，或下載 ZIP 壓縮檔：</p>
+                    <div class="code-box" id="project-path-box">C:\Users\user\Downloads\式\nthu-eeclass-copilot</div>
+                    <div class="step-action-row">
+                        <button type="button" class="btn btn-secondary" id="btn-open-folder">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1.5 3.5h4l1.5 2h7.5v7h-13z"></path>
+                            </svg>
+                            在檔案總管開啟外掛目錄
+                        </button>
+                        <a href="/extension/download-zip" class="btn btn-secondary" id="btn-download-zip" download="nthu-eeclass-copilot.zip">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M2 13.5h12"></path>
+                            </svg>
+                            下載擴充套件 (ZIP)
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步驟 2：載入擴充套件至 Chrome -->
+            <div class="step-card" id="step-2-card">
+                <div class="step-badge" id="step-2-badge">2</div>
+                <div class="step-content">
+                    <h2 class="step-title">步驟二：載入未打包擴充功能至 Google Chrome</h2>
+                    <p class="step-desc">請依照下列說明將外掛載入至 Chrome：</p>
+                    <ol class="guide-steps-list">
+                        <li>開啟 Google Chrome，於網址列輸入 <span class="code-badge">chrome://extensions/</span> 並按下 Enter</li>
+                        <li>開啟右上角「<strong>開發人員模式</strong>」開關</li>
+                        <li>點擊左上角「<strong>載入未打包項目</strong>」，選擇上方專案目錄完成載入</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- 步驟 3：本機 Chrome 擴充功能識別與設定精靈啟動 -->
+            <div class="step-card active" id="step-3-card">
+                <div class="step-badge" id="step-3-badge">3</div>
+                <div class="step-content">
+                    <h2 class="step-title">步驟三：擴充功能識別與啟動全螢幕設定精靈</h2>
+                    <p class="step-desc">系統已主動探測本機 Chrome 使用者設定檔，並即時識別 eeclass 全能助手擴充功能：</p>
+                    
+                    <!-- 偵測成功卡片 -->
+                    <div id="detected-ext-box" class="detected-ext-card" style="display: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <strong style="color: #15803d; font-size: 13.5px;">✓ 已成功於本機 Chrome 識別到 eeclass 擴充套件！</strong>
+                            <span class="badge-pill" style="background: rgba(22, 163, 74, 0.15); color: #15803d;">就緒可啟動</span>
+                        </div>
+                        <div class="detected-grid">
+                            <span class="detected-label">套件名稱：</span>
+                            <span class="detected-val" id="det-name">NTHU eeclass Copilot｜清大數位學習全能助手</span>
+                            <span class="detected-label">套件 ID：</span>
+                            <span class="detected-val"><code id="det-id">jalhfbhaelibpeomfloddhmhieckehfj</code></span>
+                            <span class="detected-label">所在設定檔：</span>
+                            <span class="detected-val" id="det-profile">Profile 8 (人員 1 - wasonisgood@gmail.com)</span>
+                            <span class="detected-label">載入目錄：</span>
+                            <span class="detected-val" id="det-path">C:\Users\user\Downloads\式\nthu-eeclass-copilot</span>
+                        </div>
+                    </div>
+
+                    <!-- 即時連線狀態條 -->
+                    <div class="status-box" id="ext-status-box">
+                        <span class="status-dot-pulse active" id="ext-status-dot"></span>
+                        <div style="flex: 1;">
+                            <div class="status-content-title" id="ext-status-title">正在探測本機 Chrome 擴充功能...</div>
+                            <div class="status-content-desc" id="ext-status-desc">系統正在深度掃描 Chrome 使用者設定檔清單...</div>
+                        </div>
+                    </div>
+
+                    <div class="step-action-row" style="margin-top: 14px;">
+                        <button type="button" class="btn btn-accent" id="btn-launch-wizard" style="display: none;">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="8" cy="8" r="7"></circle>
+                                <polyline points="6 8 8 10 11 6"></polyline>
+                            </svg>
+                            立即啟動全螢幕設定精靈 &rarr;
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btn-verify-and-launch">
+                            重新檢測本機外掛狀態
+                        </button>
+                    </div>
+
+                    <!-- Chrome 全部已安裝擴充功能折疊清冊 -->
+                    <div class="ext-list-drawer" id="ext-list-drawer">
+                        <div class="ext-list-header" id="ext-list-toggle">
+                            <span id="ext-list-summary">檢視本機 Chrome 已安裝的所有擴充功能清單 (載入中...)</span>
+                            <span id="ext-list-arrow">&darr;</span>
+                        </div>
+                        <div class="ext-list-content" id="ext-list-body" style="display: none;">
+                            <!-- 動態填入 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="consent-footer">
+            <span>國立清華大學數位學習平台全能助手 ｜ 環境引導模組</span>
+        </footer>
+    </div>
+
+    <script src="setup-guide.js"></script>
+</body>
+</html>

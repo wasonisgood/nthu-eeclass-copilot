@@ -13,6 +13,8 @@
     "tabs"
   ],
   "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
     "https://oauth.ccxp.nthu.edu.tw/*",
     "https://eeclass.nthu.edu.tw/*",
     "https://www.googleapis.com/*",
@@ -61,6 +63,34 @@
       ],
       "css": [
         "course-downloader.css"
+      ]
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://eeclass.nthu.edu.tw/*",
+      "https://oauth.ccxp.nthu.edu.tw/*"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "swagger.html",
+        "swagger.css",
+        "swagger.js",
+        "swagger-spec.json",
+        "swagger-spec.js",
+        "consent.html",
+        "consent.css",
+        "consent.js",
+        "setup-guide.html",
+        "setup-guide.js",
+        "api/eeclass-api.yaml",
+        "assets/*",
+        "vendor/swagger-ui/*"
+      ],
+      "matches": [
+        "https://eeclass.nthu.edu.tw/*"
       ]
     }
   ]
