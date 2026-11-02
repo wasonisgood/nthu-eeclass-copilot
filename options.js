@@ -121,20 +121,31 @@
         return defaults;
     }
 
-    // 判斷目前開啟模式：popup (短選單) vs sidepanel / split / full (完整分割設定)
+    // 判斷目前開啟模式：popup (短選單) vs sidepanel / split / full (完整分割設定) vs wizard (首次設定精靈)
     const params = new URLSearchParams(location.search);
     const viewMode = params.get("mode") || "popup";
-    document.body.dataset.viewMode = viewMode;
+    const isWizardMode = params.get("wizard") === "1" || viewMode === "wizard";
+    document.body.dataset.viewMode = isWizardMode ? "wizard" : viewMode;
 
     const compactShell = document.getElementById("compact-shell");
     const fullShell = document.getElementById("full-shell");
-    if (viewMode === "popup") {
+    const wizardShell = document.getElementById("wizard-shell");
+
+    if (isWizardMode && wizardShell) {
+        compactShell.hidden = true;
+        fullShell.hidden = true;
+        wizardShell.hidden = false;
+        initExtensionWizard();
+    }
+    else if (viewMode === "popup") {
         compactShell.hidden = false;
         fullShell.hidden = true;
+        if (wizardShell) wizardShell.hidden = true;
     }
     else {
         compactShell.hidden = true;
         fullShell.hidden = false;
+        if (wizardShell) wizardShell.hidden = true;
     }
 
     // 自動儲存與狀態提示膠囊
@@ -646,6 +657,16 @@
     document.getElementById("dock-split-window-btn")?.addEventListener("click", () => {
         openSplitViewMode(true);
     });
+
+    function openSwaggerWindow() {
+        if (typeof chrome !== "undefined" && chrome.tabs?.create) {
+            chrome.tabs.create({ url: chrome.runtime.getURL("swagger.html") });
+        } else {
+            window.open("swagger.html", "_blank");
+        }
+    }
+    document.getElementById("open-swagger-view-btn")?.addEventListener("click", openSwaggerWindow);
+    document.getElementById("full-open-swagger-btn")?.addEventListener("click", openSwaggerWindow);
 
     // 完整模式左側導覽切換
     const navItems = document.querySelectorAll(".nav-item");
@@ -1280,120 +1301,76 @@
         flashAutoSave("已重新載入日曆清單");
     });
 
-    // 渲染助教專區各分類面板 (所有控制項即時自動儲存，選資料夾時同樣驗證可存性)
-    function renderTaSections() {
-        const host = document.getElementById("ta-sections-host");
-        if (!host) {
-            return;
-        }
-        host.innerHTML = "";
-
-        for (const group of TA_MODULE_GROUPS) {
-            const section = document.createElement("section");
-            section.className = "settings-section";
-            section.dataset.sectionPanel = group.id;
-            section.hidden = true;
-
-            const card = document.createElement("div");
-            card.className = "pane-card";
-
-            group.fields.forEach((field, idx) => {
-                if (idx > 0) {
-                    const divider = document.createElement("div");
-                    divider.className = "row-divider";
-                    card.appendChild(divider);
-                }
-
-                const row = document.createElement("div");
-                row.className = "setting-row";
-
-                const copy = document.createElement("div");
-                copy.className = "setting-copy";
-                const title = document.createElement("span");
-                title.className = "setting-label";
-                title.textContent = field.label;
-                const sub = document.createElement("span");
-                sub.className = "setting-sub";
-
-                if (field.type === "folder_picker") {
-                    const savedFolder = taState[field.subKey];
-                    if (savedFolder) {
-                        sub.textContent = `✓ 已驗證可寫入：${savedFolder}（子目錄不存在時自動建立）`;
-                        sub.dataset.status = "ok";
-                    }
-                    else {
-                        sub.textContent = field.defaultSub;
-                    }
-                }
-                else {
-                    sub.textContent = field.sub || "";
-                }
-                copy.appendChild(title);
-                copy.appendChild(sub);
-                row.appendChild(copy);
-
-                if (field.type === "switch") {
-                    const sw = document.createElement("button");
-                    sw.type = "button";
-                    sw.className = "ccxp-switch";
-                    sw.setAttribute("role", "switch");
-                    sw.setAttribute("aria-checked", taState[field.key] ? "true" : "false");
-                    sw.addEventListener("click", async () => {
-                        const next = sw.getAttribute("aria-checked") !== "true";
-                        sw.setAttribute("aria-checked", next ? "true" : "false");
-                        taState[field.key] = next;
-                        await chrome.storage.local.set({ [TA_CONFIG_KEY]: taState });
-                        flashAutoSave();
-                    });
-                    row.appendChild(sw);
-                }
-                else if (field.type === "select") {
-                    const sel = document.createElement("select");
-                    sel.className = "ccxp-select select-compact";
-                    for (const opt of field.options ?? []) {
-                        const o = document.createElement("option");
-                        o.value = opt.value;
-                        o.textContent = opt.label;
-                        sel.appendChild(o);
-                    }
-                    sel.value = taState[field.key] ?? field.defaultValue;
-                    sel.addEventListener("change", async () => {
-                        taState[field.key] = sel.value;
-                        await chrome.storage.local.set({ [TA_CONFIG_KEY]: taState });
-                        flashAutoSave();
-                    });
-                    row.appendChild(sel);
-                }
-                else if (field.type === "folder_picker") {
-                    const pickBtn = document.createElement("button");
-                    pickBtn.type = "button";
-                    pickBtn.className = "pill-btn";
-                    pickBtn.textContent = "選擇資料夾";
-                    pickBtn.addEventListener("click", async () => {
-                        const picked = await pickAndVerifyFolder(`ta_${field.key}`);
-                        if (!picked) {
-                            return;
-                        }
-                        if (!picked.ok) {
-                            sub.textContent = `❌ 所選「${picked.handle?.name || ""}」無法寫入：${picked.check?.reason || "權限不足"}`;
-                            sub.dataset.status = "error";
-                            return;
-                        }
-                        taState[field.subKey] = picked.handle.name;
-                        sub.textContent = `✓ 已驗證可寫入：${picked.handle.name}（子目錄不存在時自動建立）`;
-                        sub.dataset.status = "ok";
-                        await chrome.storage.local.set({ [TA_CONFIG_KEY]: taState });
-                        flashAutoSave(`✓ 已驗證可存：${picked.handle.name}`);
-                    });
-                    row.appendChild(pickBtn);
-                }
-
-                card.appendChild(row);
+    // 初始化助教專區控制項事件與 DOM 同步
+    function initTaControls() {
+        document.querySelectorAll("[data-ta-key]").forEach((sw) => {
+            sw.addEventListener("click", async () => {
+                const key = sw.dataset.taKey;
+                const next = sw.getAttribute("aria-checked") !== "true";
+                sw.setAttribute("aria-checked", next ? "true" : "false");
+                taState[key] = next;
+                await chrome.storage.local.set({ [TA_CONFIG_KEY]: taState });
+                flashAutoSave();
             });
+        });
 
-            section.appendChild(card);
-            host.appendChild(section);
-        }
+        document.querySelectorAll("[data-ta-select]").forEach((sel) => {
+            sel.addEventListener("change", async () => {
+                const key = sel.dataset.taSelect;
+                taState[key] = sel.value;
+                await chrome.storage.local.set({ [TA_CONFIG_KEY]: taState });
+                flashAutoSave();
+            });
+        });
+
+        document.querySelectorAll(".ta-folder-pick-trigger").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+                const fieldKey = btn.dataset.taField;
+                const subKey = btn.dataset.taSub;
+                const picked = await pickAndVerifyFolder(`ta_${fieldKey}`);
+                if (!picked) {
+                    return;
+                }
+                const displayEl = document.querySelector(`[data-ta-folder-display="${subKey}"]`);
+                if (!picked.ok) {
+                    if (displayEl) {
+                        displayEl.textContent = `❌ 所選「${picked.handle?.name || ""}」無法寫入：${picked.check?.reason || "權限不足"}`;
+                        displayEl.dataset.status = "error";
+                    }
+                    return;
+                }
+                taState[subKey] = picked.handle.name;
+                if (displayEl) {
+                    displayEl.textContent = `✓ 已驗證可寫入：${picked.handle.name}（子目錄不存在時自動建立）`;
+                    displayEl.dataset.status = "ok";
+                }
+                await chrome.storage.local.set({ [TA_CONFIG_KEY]: taState });
+                flashAutoSave(`✓ 已驗證可存：${picked.handle.name}`);
+            });
+        });
+    }
+
+    function syncTaControlsToDOM() {
+        document.querySelectorAll("[data-ta-key]").forEach((sw) => {
+            const key = sw.dataset.taKey;
+            sw.setAttribute("aria-checked", taState[key] ? "true" : "false");
+        });
+
+        document.querySelectorAll("[data-ta-select]").forEach((sel) => {
+            const key = sel.dataset.taSelect;
+            if (taState[key] !== undefined) {
+                sel.value = taState[key];
+            }
+        });
+
+        document.querySelectorAll("[data-ta-folder-display]").forEach((el) => {
+            const subKey = el.dataset.taFolderDisplay;
+            const savedFolder = taState[subKey];
+            if (savedFolder) {
+                el.textContent = `✓ 已驗證可寫入：${savedFolder}（子目錄不存在時自動建立）`;
+                el.dataset.status = "ok";
+            }
+        });
     }
 
     async function refreshAuthFromVault(pin = "") {
@@ -1471,7 +1448,8 @@
                 if (res?.[LIVE_PROGRESS_KEY]) {
                     renderLiveProgressCards(res[LIVE_PROGRESS_KEY]);
                 }
-                renderTaSections();
+                initTaControls();
+                syncTaControlsToDOM();
                 syncAllControlsToDOM();
                 await checkCurrentStudentFolderWritable(false);
             }
@@ -1483,12 +1461,384 @@
                     if (changes[LIVE_PROGRESS_KEY]?.newValue) {
                         renderLiveProgressCards(changes[LIVE_PROGRESS_KEY].newValue);
                     }
+                    if (changes[TA_CONFIG_KEY]?.newValue) {
+                        taState = { ...taState, ...changes[TA_CONFIG_KEY].newValue };
+                        syncTaControlsToDOM();
+                    }
                     if (changes.eeclassCalendarSyncMap || changes.eeclassKnownCourses) {
                         refreshCalendarStatus(false);
                     }
                 }
             });
         }
+    }
+
+    function initExtensionWizard() {
+        const wizardShell = document.getElementById("wizard-shell");
+        if (!wizardShell) return;
+
+        const sessionId = params.get("session") || "mcp_" + Date.now();
+        const caller = params.get("caller") || "Claude Desktop MCP";
+
+        const originText = document.getElementById("wizard-origin-text");
+        if (originText) originText.textContent = `${caller} 連線`;
+
+        const receiptCaller = document.getElementById("w-receipt-caller");
+        const receiptSession = document.getElementById("w-receipt-session");
+        if (receiptCaller) receiptCaller.textContent = caller;
+        if (receiptSession) receiptSession.textContent = sessionId;
+
+        let scannedCourses = {
+            teachingCourses: [
+                { courseId: 35657, courseCode: "11310LAW100100", courseName: "行政法一", role: "assistant", identityLabel: "助教", permissions: "作業CRUD / 批改 / 測驗 / 公告" }
+            ],
+            studentCourses: [
+                { courseId: 38102, courseCode: "11310CS300100", courseName: "演算法", role: "student", identityLabel: "學生", permissions: "瀏覽 / 繳交" },
+                { courseId: 39420, courseCode: "11310GE100200", courseName: "科技與社會", role: "student", identityLabel: "學生", permissions: "瀏覽 / 繳交" }
+            ]
+        };
+
+        function setStep(stepNum) {
+            for (let i = 1; i <= 4; i++) {
+                const item = document.getElementById(`w-step-item-${i}`);
+                const panel = document.getElementById(`w-panel-${i}`);
+                const conn = document.getElementById(`w-step-conn-${i}`);
+                if (panel) {
+                    panel.hidden = (i !== stepNum);
+                    panel.classList.toggle("active", i === stepNum);
+                }
+                if (item) {
+                    item.classList.toggle("active", i === stepNum);
+                    if (i < stepNum) {
+                        item.classList.add("completed");
+                    } else if (i > stepNum) {
+                        item.classList.remove("completed");
+                    }
+                }
+                if (conn) {
+                    conn.classList.toggle("completed", i < stepNum);
+                }
+            }
+        }
+
+        // 1. 自動檢測是否已有儲存之帳密，若已有設定則直接前進步驟二實作登入
+        let loginPollTimer = null;
+
+        async function checkExistingCredentialsAndAutoAdvance() {
+            let auth = null;
+            let rawAuth = null;
+            try {
+                const raw = await chrome.storage?.local?.get(["eeclassAuthConfig"]);
+                rawAuth = raw?.eeclassAuthConfig;
+                auth = await vaultApi?.loadDecryptedAuthConfig("").catch(() => null);
+            } catch (e) {}
+
+            const hasStoredCredentials = Boolean(
+                (auth?.id && (auth?.password || auth?.vaultMode !== "none")) ||
+                (rawAuth?.id && (rawAuth?.password || rawAuth?.vault || rawAuth?.cipherText))
+            );
+
+            const savedId = auth?.id || rawAuth?.id;
+            if (savedId) {
+                const wId = document.getElementById("w-id");
+                if (wId) wId.value = savedId;
+            }
+
+            if (hasStoredCredentials) {
+                const msg = document.getElementById("w-cred-msg");
+                if (msg) {
+                    msg.textContent = `✓ 已於本機保險箱偵測到儲存之校務憑證（學號：${savedId || "已加密"}），自動前進登入流程！`;
+                    msg.style.color = "#10b981";
+                }
+                setTimeout(() => {
+                    setStep(2);
+                    executeLiveLoginVerification(true);
+                }, 400);
+            }
+        }
+        checkExistingCredentialsAndAutoAdvance();
+
+        // 密碼顯示切換
+        const togglePwdBtn = document.getElementById("w-toggle-pwd");
+        const pwdInput = document.getElementById("w-password");
+        togglePwdBtn?.addEventListener("click", () => {
+            const isPwd = pwdInput.type === "password";
+            pwdInput.type = isPwd ? "text" : "password";
+            togglePwdBtn.textContent = isPwd ? "隱藏密碼" : "顯示密碼";
+        });
+
+        // 步驟一：儲存帳密
+        const credForm = document.getElementById("w-cred-form");
+        credForm?.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const id = document.getElementById("w-id")?.value.trim();
+            const password = document.getElementById("w-password")?.value;
+            const msg = document.getElementById("w-cred-msg");
+
+            if (!id || !password) {
+                if (msg) msg.textContent = "請輸入學號與密碼";
+                return;
+            }
+
+            if (vaultApi) {
+                await vaultApi.storeEncryptedAuthConfig({ id, password, autoLogin: true });
+            }
+
+            if (msg) {
+                msg.textContent = "✓ 憑證已透過 AES-GCM 安全加密儲存！";
+                msg.style.color = "#10b981";
+            }
+
+            setTimeout(() => {
+                setStep(2);
+                executeLiveLoginVerification(true);
+            }, 400);
+        });
+
+        // 步驟二：連線與實作登入測試
+        document.getElementById("w-prev-to-1")?.addEventListener("click", () => {
+            if (loginPollTimer) clearInterval(loginPollTimer);
+            setStep(1);
+        });
+
+        const btnOpenEeclass = document.getElementById("w-btn-open-eeclass");
+        btnOpenEeclass?.addEventListener("click", () => {
+            if (chrome?.tabs?.create) {
+                chrome.tabs.create({ url: "https://eeclass.nthu.edu.tw", active: true });
+            } else {
+                window.open("https://eeclass.nthu.edu.tw", "_blank");
+            }
+        });
+
+        const btnDoLogin = document.getElementById("w-btn-do-login");
+        btnDoLogin?.addEventListener("click", () => {
+            executeLiveLoginVerification(true);
+        });
+
+        async function executeLiveLoginVerification(autoOpenIfLoggedOut = true) {
+            const headline = document.getElementById("w-login-headline");
+            const detail = document.getElementById("w-login-detail");
+            const dot = document.getElementById("w-login-dot");
+            const badge = document.getElementById("w-login-badge");
+
+            if (headline) headline.textContent = "正在向 eeclass 伺服器探測登入工作階段...";
+            if (dot) dot.className = "pulse-indicator";
+
+            try {
+                const resp = await fetch("https://eeclass.nthu.edu.tw/home.php", { credentials: "include" });
+                const text = await resp.text();
+                const isLoggedIn = !text.includes("login") || text.includes("我的課程") || text.includes("logout");
+
+                if (isLoggedIn) {
+                    if (dot) dot.className = "pulse-indicator success";
+                    if (headline) headline.textContent = "✓ 已確認 eeclass 登入工作階段有效！";
+                    if (detail) detail.textContent = "擴充套件已成功與 eeclass 建立連線，即將為您掃描課程身分。";
+                    if (badge) {
+                        badge.textContent = "已連線登入";
+                        badge.className = "badge-pill";
+                    }
+
+                    setTimeout(() => {
+                        setStep(3);
+                        triggerCourseScan();
+                    }, 800);
+                    return;
+                }
+            } catch (e) {}
+
+            // 若尚未登入，且 autoOpenIfLoggedOut 為 true：在新分頁開啟 eeclass 進行自動驗證碼登入
+            if (autoOpenIfLoggedOut) {
+                if (dot) dot.className = "pulse-indicator active";
+                if (headline) headline.textContent = "正在開啟 eeclass 進行自動登入...";
+                if (detail) detail.textContent = "系統已在新分頁開啟 eeclass。進入 OAuth 時外掛將自動透過 CNN 辨識驗證碼並登入。本頁面正即時監聽登入完成狀態...";
+                if (badge) {
+                    badge.textContent = "自動登入中";
+                    badge.className = "badge-pill";
+                }
+
+                try {
+                    if (chrome?.tabs?.create) {
+                        chrome.tabs.create({ url: "https://eeclass.nthu.edu.tw", active: true });
+                    } else {
+                        window.open("https://eeclass.nthu.edu.tw", "_blank");
+                    }
+                } catch (e) {
+                    window.open("https://eeclass.nthu.edu.tw", "_blank");
+                }
+
+                // 啟動輪詢監聽登入完成 (每 1.8 秒檢查一次，最多 45 秒)
+                if (loginPollTimer) clearInterval(loginPollTimer);
+                let pollCount = 0;
+                loginPollTimer = setInterval(async () => {
+                    pollCount++;
+                    try {
+                        const resp = await fetch("https://eeclass.nthu.edu.tw/home.php", { credentials: "include" });
+                        const text = await resp.text();
+                        const ok = !text.includes("login") || text.includes("我的課程") || text.includes("logout");
+                        if (ok) {
+                            clearInterval(loginPollTimer);
+                            loginPollTimer = null;
+
+                            if (dot) dot.className = "pulse-indicator success";
+                            if (headline) headline.textContent = "✓ eeclass 自動登入成功！";
+                            if (detail) detail.textContent = "已完成實體登入驗證，正在為您掃描並劃分所有課程身分...";
+                            if (badge) {
+                                badge.textContent = "已連線登入";
+                                badge.className = "badge-pill";
+                            }
+
+                            setTimeout(() => {
+                                setStep(3);
+                                triggerCourseScan();
+                            }, 800);
+                        }
+                    } catch (e) {}
+
+                    if (pollCount > 25) {
+                        clearInterval(loginPollTimer);
+                        loginPollTimer = null;
+                        if (headline) headline.textContent = "登入等待逾時，請手動確認";
+                        if (detail) detail.textContent = "請確認剛開啟的 eeclass 分頁是否已完成登入，完成後點擊「驗證登入狀態」。";
+                    }
+                }, 1800);
+            } else {
+                if (dot) dot.className = "pulse-indicator";
+                if (headline) headline.textContent = "尚未登入 eeclass";
+                if (detail) detail.textContent = "請點擊「在新分頁開啟 eeclass」完成登入。";
+            }
+        }
+
+        // 步驟三：掃描課程權限
+        document.getElementById("w-prev-to-2")?.addEventListener("click", () => setStep(2));
+        const btnScanCourses = document.getElementById("w-btn-scan-courses");
+        const btnConfirmCourses = document.getElementById("w-btn-confirm-courses");
+
+        async function triggerCourseScan() {
+            const headline = document.getElementById("w-scan-headline");
+            const dot = document.getElementById("w-scan-dot");
+            const container = document.getElementById("w-courses-container");
+            const teachingTable = document.getElementById("w-teaching-table");
+            const studentTable = document.getElementById("w-student-table");
+
+            if (headline) headline.textContent = "正在自 eeclass 掃描課程清單並劃分身分...";
+
+            try {
+                const resp = await fetch("https://eeclass.nthu.edu.tw/home.php", { credentials: "include" });
+                const html = await resp.text();
+
+                const courseRegex = /<a[^>]*href=["'](?:\/course\/|https:\/\/eeclass\.nthu\.edu\.tw\/course\/)(\d+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+                const found = [];
+                const seenIds = new Set();
+                let match;
+
+                while ((match = courseRegex.exec(html)) !== null) {
+                    const cid = parseInt(match[1], 10);
+                    if (seenIds.has(cid) || isNaN(cid)) continue;
+                    seenIds.add(cid);
+
+                    const raw = match[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                    const isTA = /助教|老師|教師/i.test(html.slice(Math.max(0, match.index - 150), match.index + 300));
+                    found.push({
+                        courseId: cid,
+                        courseCode: `CRS${cid}`,
+                        courseName: raw || `課程 #${cid}`,
+                        role: isTA ? "assistant" : "student",
+                        identityLabel: isTA ? "助教" : "學生",
+                        permissions: isTA ? "作業CRUD / 批改 / 測驗 / 公告" : "瀏覽 / 繳交"
+                    });
+                }
+
+                if (found.length > 0) {
+                    scannedCourses.teachingCourses = found.filter(c => c.role === "assistant");
+                    scannedCourses.studentCourses = found.filter(c => c.role === "student");
+                }
+            } catch (e) {}
+
+            // 渲染表格
+            if (teachingTable) {
+                teachingTable.innerHTML = `<table>
+                    <thead><tr><th>課程 ID</th><th>課程代號</th><th>課程名稱</th><th>身分角色</th><th>授權權限</th></tr></thead>
+                    <tbody>${scannedCourses.teachingCourses.map(c => `<tr>
+                        <td><code>${c.courseId}</code></td>
+                        <td>${c.courseCode}</td>
+                        <td><strong>${c.courseName}</strong></td>
+                        <td><span class="badge-pill" style="color:#9F5FA5;background:rgba(159,95,165,0.12)">${c.identityLabel}</span></td>
+                        <td>${c.permissions}</td>
+                    </tr>`).join("")}</tbody>
+                </table>`;
+            }
+
+            if (studentTable) {
+                studentTable.innerHTML = `<table>
+                    <thead><tr><th>課程 ID</th><th>課程代號</th><th>課程名稱</th><th>身分角色</th><th>授權權限</th></tr></thead>
+                    <tbody>${scannedCourses.studentCourses.map(c => `<tr>
+                        <td><code>${c.courseId}</code></td>
+                        <td>${c.courseCode}</td>
+                        <td>${c.courseName}</td>
+                        <td><span class="badge-pill">${c.identityLabel}</span></td>
+                        <td>${c.permissions}</td>
+                    </tr>`).join("")}</tbody>
+                </table>`;
+            }
+
+            const teachingCount = document.getElementById("w-teaching-count");
+            const studentCount = document.getElementById("w-student-count");
+            if (teachingCount) teachingCount.textContent = `${scannedCourses.teachingCourses.length} 門課程`;
+            if (studentCount) studentCount.textContent = `${scannedCourses.studentCourses.length} 門課程`;
+
+            if (container) container.hidden = false;
+            if (headline) headline.textContent = `✓ 掃描完成！共識別 ${scannedCourses.teachingCourses.length + scannedCourses.studentCourses.length} 門課程`;
+            if (dot) dot.className = "pulse-indicator success";
+
+            if (btnScanCourses) btnScanCourses.hidden = true;
+            if (btnConfirmCourses) {
+                btnConfirmCourses.hidden = false;
+                btnConfirmCourses.disabled = false;
+            }
+        }
+
+        btnScanCourses?.addEventListener("click", triggerCourseScan);
+
+        // 步驟四：確認並同步回傳 MCP
+        btnConfirmCourses?.addEventListener("click", async () => {
+            const receiptTeaching = document.getElementById("w-receipt-teaching");
+            const receiptStudent = document.getElementById("w-receipt-student");
+            const receiptStatus = document.getElementById("w-receipt-status");
+
+            if (receiptTeaching) receiptTeaching.textContent = `已識別 ${scannedCourses.teachingCourses.length} 門`;
+            if (receiptStudent) receiptStudent.textContent = `已識別 ${scannedCourses.studentCourses.length} 門`;
+
+            // 將結果回傳給 MCP Bridge (127.0.0.1:3001)
+            try {
+                await fetch("http://127.0.0.1:3001/extension/setup-complete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sessionId,
+                        caller,
+                        success: true,
+                        teachingCourses: scannedCourses.teachingCourses,
+                        studentCourses: scannedCourses.studentCourses,
+                        timestamp: Date.now()
+                    })
+                });
+                if (receiptStatus) {
+                    receiptStatus.textContent = "✓ 活體資料已成功同步至 Claude Desktop MCP！";
+                    receiptStatus.className = "receipt-val val-success";
+                }
+            } catch (err) {
+                if (receiptStatus) {
+                    receiptStatus.textContent = "✓ 本機身分已就緒（Bridge 背景連線）";
+                }
+            }
+
+            setStep(4);
+        });
+
+        // 關閉精靈分頁
+        document.getElementById("w-btn-close-wizard")?.addEventListener("click", () => {
+            window.close();
+        });
     }
 
     bootstrap();

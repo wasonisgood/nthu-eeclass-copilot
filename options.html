@@ -109,6 +109,15 @@
         </svg>
         <span>在側邊分割視窗開啟完整設定</span>
       </button>
+      <button type="button" id="open-swagger-view-btn" class="split-open-btn">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="2" y1="5" x2="14" y2="5"/>
+          <line x1="2" y1="11" x2="14" y2="11"/>
+          <circle cx="5" cy="5" r="1.5" fill="currentColor"/>
+          <circle cx="11" cy="11" r="1.5" fill="currentColor"/>
+        </svg>
+        <span>開啟助教 API 控制台</span>
+      </button>
     </footer>
   </div>
 
@@ -591,8 +600,157 @@
           </div>
         </section>
 
-        <!-- 分類 3~5：助教專區 (動態渲染，全自動儲存) -->
-        <div id="ta-sections-host"></div>
+        <!-- 分類 4：助教專區 - 作業與批改 -->
+        <section class="settings-section" data-section-panel="ta-homework" hidden>
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">作業批改與名單輔助工具</h2>
+              <span class="badge-pill">TA 功能</span>
+            </div>
+            <p class="section-desc">
+              於作業檢視頁面提供批次下載附件與狀態篩選工具，自動標記遲交與未繳名單。
+            </p>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">啟用作業批改列表快速工具列</span>
+                <span class="setting-sub">於助教作業檢視頁面顯示批次下載與狀態篩選列</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-ta-key="enableHomeworkBatchHelper"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">醒目提示遲交與未交學生</span>
+                <span class="setting-sub">於作業繳交名單中自動標示遲交與未繳狀態</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-ta-key="highlightLateSubmissions"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">學生作業批次存放資料夾</span>
+                <span class="setting-sub" data-ta-folder-display="homeworkBoundFolderName">預設目錄：系統「下載」/ eeclass_TA_作業（不存在時自動建立）</span>
+              </div>
+              <div class="setting-controls">
+                <button type="button" class="pill-btn ta-folder-pick-trigger" data-ta-field="homeworkFolderButton" data-ta-sub="homeworkBoundFolderName">選擇資料夾</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分類 5：助教專區 - 成績與名單 -->
+        <section class="settings-section" data-section-panel="ta-grading" hidden>
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">成績管理與名單匯出</h2>
+              <span class="badge-pill">TA 功能</span>
+            </div>
+            <p class="section-desc">
+              自動依據作業繳交時間試算遲交扣分，並支援名單與成績備份匯出。
+            </p>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">自動依遲交時間試算扣分建議</span>
+                <span class="setting-sub">於批改介面自動計算遲交天數並標示扣分試算值</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-ta-key="autoCalculateLatePenalty"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">成績試算表匯出格式</span>
+                <span class="setting-sub">匯出至本機的檔案格式規範</span>
+              </div>
+              <select class="ccxp-select select-compact" data-ta-select="gradeExportFormat">
+                <option value="xlsx">Excel 活頁簿 (.xlsx)</option>
+                <option value="csv">逗點分隔檔 (.csv)</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">學生成績備份存放資料夾</span>
+                <span class="setting-sub" data-ta-folder-display="gradeBackupBoundFolderName">預設目錄：系統「下載」/ eeclass_TA_成績（不存在時自動建立）</span>
+              </div>
+              <div class="setting-controls">
+                <button type="button" class="pill-btn ta-folder-pick-trigger" data-ta-field="gradeBackupFolder" data-ta-sub="gradeBackupBoundFolderName">選擇資料夾</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分類 6：助教專區 - 教材與公告 -->
+        <section class="settings-section" data-section-panel="ta-publishing" hidden>
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">教材發布與公告通知</h2>
+              <span class="badge-pill">TA 功能</span>
+            </div>
+            <p class="section-desc">
+              簡化課程教材與公告發布流程，自動保留原始清晰檔案名稱。
+            </p>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">發布公告時預設勾選「寄信通知全班」</span>
+                <span class="setting-sub">新增公告表單自動開啟全班電子郵件通知核取方塊</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-ta-key="defaultEmailNotify"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">保留原始上傳檔案命名規範</span>
+                <span class="setting-sub">於發布教材時自動去除暫存序號並保留清晰檔名</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-ta-key="preserveOriginalFilename"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">教材發布來源資料夾</span>
+                <span class="setting-sub" data-ta-folder-display="materialsBoundFolderName">預設目錄：系統「下載」/ eeclass_TA_教材（不存在時自動建立）</span>
+              </div>
+              <div class="setting-controls">
+                <button type="button" class="pill-btn ta-folder-pick-trigger" data-ta-field="materialsUploadFolder" data-ta-sub="materialsBoundFolderName">選擇資料夾</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分類 7：助教專區 - API 控制台 -->
+        <section class="settings-section" data-section-panel="ta-api" hidden>
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">助教與教師 API 控制台</h2>
+              <span class="badge-pill">OpenAPI 3.0.3</span>
+            </div>
+            <p class="section-desc">
+              提供符合清大數位學習平台規範之 OpenAPI 3.0.3 分離操控介面，支援課程作業、測驗、評分成績與公告發布之自動化存取。
+            </p>
+            <div class="setting-row" style="margin-top: 14px;">
+              <div class="setting-copy">
+                <span class="setting-label">API 控制台介面 (Swagger UI)</span>
+                <span class="setting-sub">於新分頁開啟原生工作台，支援 RBAC 角色測試與 UI 許可申請</span>
+              </div>
+              <button type="button" id="full-open-swagger-btn" class="pill-btn">開啟控制台</button>
+            </div>
+          </div>
+        </section>
 
         <!-- 分類 6：進階資安與自訂金鑰 -->
         <section class="settings-section" data-section-panel="advanced-security" hidden>
@@ -615,6 +773,193 @@
         </section>
       </div>
     </main>
+  </div>
+
+  <!-- ==================== 擴充功能專屬全螢幕首次設定精靈 (In-Extension Full Setup Wizard) ==================== -->
+  <div id="wizard-shell" class="wizard-shell" hidden>
+    <div class="wizard-box">
+      <header class="wizard-header">
+        <div class="brand-row">
+          <img src="assets/logo-32.png" alt="" class="brand-logo">
+          <div>
+            <div class="brand-title">eeclass Copilot 全能助手</div>
+            <div class="brand-caption">擴充功能設定精靈與身分授權</div>
+          </div>
+        </div>
+        <div class="wizard-origin-tag" id="wizard-origin-tag">
+          <span class="origin-dot"></span>
+          <span id="wizard-origin-text">Claude Desktop MCP 連線</span>
+        </div>
+      </header>
+
+      <!-- 步驟進度列 (Step Progress Bar) -->
+      <div class="wizard-steps-container">
+        <div class="wizard-step-item active" id="w-step-item-1">
+          <span class="w-step-num">1</span>
+          <span class="w-step-title">設定校務帳密</span>
+        </div>
+        <div class="w-step-connector" id="w-step-conn-1"></div>
+        <div class="wizard-step-item" id="w-step-item-2">
+          <span class="w-step-num">2</span>
+          <span class="w-step-title">實作登入驗證</span>
+        </div>
+        <div class="w-step-connector" id="w-step-conn-2"></div>
+        <div class="wizard-step-item" id="w-step-item-3">
+          <span class="w-step-num">3</span>
+          <span class="w-step-title">掃描課程身分</span>
+        </div>
+        <div class="w-step-connector" id="w-step-conn-3"></div>
+        <div class="wizard-step-item" id="w-step-item-4">
+          <span class="w-step-num">4</span>
+          <span class="w-step-title">完成並同步</span>
+        </div>
+      </div>
+
+      <!-- 步驟一：設定帳號密碼 -->
+      <section class="wizard-step-panel active" id="w-panel-1">
+        <div class="pane-card">
+          <div class="card-title-row">
+            <h2 class="card-title">步驟一：設定清大校務資訊系統帳號與密碼</h2>
+            <span class="badge-pill">AES-GCM-256 加密保護</span>
+          </div>
+          <p class="section-desc">
+            此資訊用於自動辨識驗證碼並登入清大數位學習平台（eeclass）。密碼將透過瀏覽器不可匯出之金鑰加密保存於本機，絕不上傳雲端。
+          </p>
+          <form id="w-cred-form" autocomplete="off" spellcheck="false">
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="w-id">學號 / 教職員代號</label>
+                <input type="text" id="w-id" class="ccxp-input" placeholder="例如：111062501" required maxlength="42">
+              </div>
+              <div class="form-field">
+                <div class="field-label-bar">
+                  <label for="w-password">校務資訊系統密碼</label>
+                  <button type="button" id="w-toggle-pwd" class="link-btn">顯示密碼</button>
+                </div>
+                <input type="password" id="w-password" class="ccxp-input" placeholder="請輸入密碼" required maxlength="24">
+              </div>
+            </div>
+            <div class="wizard-footer-row">
+              <span id="w-cred-msg" class="wizard-msg"></span>
+              <button type="submit" class="primary-btn">儲存憑證並進入下一步 &rarr;</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- 步驟二：執行實際登入驗證 -->
+      <section class="wizard-step-panel" id="w-panel-2" hidden>
+        <div class="pane-card">
+          <div class="card-title-row">
+            <h2 class="card-title">步驟二：實作實際 eeclass 登入與連線檢測</h2>
+            <span id="w-login-badge" class="badge-pill">待檢測</span>
+          </div>
+          <p class="section-desc">
+            擴充套件將向清大 eeclass 進行即時連線探測，驗證您儲存的憑證是否已就緒，並確認登入工作階段有效性。
+          </p>
+
+          <div class="wizard-status-card" id="w-login-card">
+            <div class="status-indicator-line">
+              <span class="pulse-indicator" id="w-login-dot"></span>
+              <span class="status-headline" id="w-login-headline">準備就緒，請點擊「驗證登入狀態」</span>
+            </div>
+            <div class="status-detail-text" id="w-login-detail">
+              系統將向 https://eeclass.nthu.edu.tw 進行安全探測。若未登入，將協助您確認工作階段。
+            </div>
+          </div>
+
+          <div class="wizard-footer-row">
+            <button type="button" class="pill-btn" id="w-prev-to-1">&larr; 返回修改帳密</button>
+            <button type="button" class="pill-btn" id="w-btn-open-eeclass">在新分頁開啟 eeclass</button>
+            <button type="button" class="primary-btn" id="w-btn-do-login">驗證登入狀態 &rarr;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 步驟三：掃描課程權限並劃分身分 -->
+      <section class="wizard-step-panel" id="w-panel-3" hidden>
+        <div class="pane-card">
+          <div class="card-title-row">
+            <h2 class="card-title">步驟三：掃描真實課程清單並劃分身分權限</h2>
+            <span id="w-scan-badge" class="badge-pill">權限審查中</span>
+          </div>
+          <p class="section-desc">
+            依照 Claude Desktop MCP 規劃規範，自動將您的課程精確劃分為「助教／授課教師」（具出作業、測驗、公告發布權限）與「一般修課學生」，確保後續 AI 操控具備嚴格的權限安全隔離。
+          </p>
+
+          <div class="wizard-status-card" id="w-scan-card">
+            <div class="status-indicator-line">
+              <span class="pulse-indicator" id="w-scan-dot"></span>
+              <span class="status-headline" id="w-scan-headline">點擊按鈕以連線 eeclass 解析個人課程清單...</span>
+            </div>
+          </div>
+
+          <!-- 即時掃描出的課程表格清單 -->
+          <div id="w-courses-container" class="wizard-courses-list" hidden>
+            <div class="courses-group-header">
+              <span class="group-title">助教 / 授課教師課程（具特殊管理權限）</span>
+              <span class="group-count" id="w-teaching-count">0 門課程</span>
+            </div>
+            <div id="w-teaching-table" class="courses-table-shell"></div>
+
+            <div class="courses-group-header" style="margin-top: 14px;">
+              <span class="group-title">一般修課學生課程（限瀏覽與個人作業繳交）</span>
+              <span class="group-count" id="w-student-count">0 門課程</span>
+            </div>
+            <div id="w-student-table" class="courses-table-shell"></div>
+          </div>
+
+          <div class="wizard-footer-row">
+            <button type="button" class="pill-btn" id="w-prev-to-2">&larr; 上一步</button>
+            <button type="button" class="primary-btn" id="w-btn-scan-courses">掃描所有課程與身分 &rarr;</button>
+            <button type="button" class="primary-btn" id="w-btn-confirm-courses" hidden>確認身分劃分並完成 &rarr;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 步驟四：完成並即時回傳觸發者 -->
+      <section class="wizard-step-panel" id="w-panel-4" hidden>
+        <div class="pane-card finish-card">
+          <div class="finish-icon-wrap">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <h2 class="card-title finish-title">設定完成！擴充功能與身分已成功綁定</h2>
+          <p class="section-desc finish-desc">
+            校務帳密已加密安全保管，且已為您完成實際登入與課程身分劃分。設定結果已即時回傳給發起端。
+          </p>
+
+          <div class="receipt-box">
+            <div class="receipt-item">
+              <span class="receipt-label">觸發來源</span>
+              <span class="receipt-val" id="w-receipt-caller">Claude Desktop MCP</span>
+            </div>
+            <div class="receipt-item">
+              <span class="receipt-label">工作階段</span>
+              <span class="receipt-val" id="w-receipt-session">-</span>
+            </div>
+            <div class="receipt-item">
+              <span class="receipt-label">助教／教師課程</span>
+              <span class="receipt-val" id="w-receipt-teaching">已識別 1 門</span>
+            </div>
+            <div class="receipt-item">
+              <span class="receipt-label">修課學生課程</span>
+              <span class="receipt-val" id="w-receipt-student">已識別 2 門</span>
+            </div>
+            <div class="receipt-item">
+              <span class="receipt-label">MCP 同步狀態</span>
+              <span class="receipt-val val-success" id="w-receipt-status">✓ 活體資料已同步至 MCP</span>
+            </div>
+          </div>
+
+          <div class="wizard-footer-row" style="justify-content: center; margin-top: 24px;">
+            <button type="button" class="primary-btn" id="w-btn-close-wizard">完成並關閉此分頁</button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script src="crypto-vault.js"></script>
