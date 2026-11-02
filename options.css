@@ -1,0 +1,719 @@
+:root {
+  --ccxp-lite-primary: #9F5FA5;
+  --ccxp-lite-primary-hover: #8E4E94;
+  --ccxp-lite-primary-surface: rgba(159, 95, 165, 0.08);
+  --ccxp-lite-primary-active-surface: rgba(159, 95, 165, 0.14);
+  --ccxp-lite-primary-border: rgba(159, 95, 165, 0.28);
+  --ccxp-lite-bg: #f5f7f9;
+  --ccxp-lite-surface: #ffffff;
+  --ccxp-lite-border: rgba(31, 41, 51, 0.12);
+  --ccxp-lite-text: #111827;
+  --ccxp-lite-text-muted: #52606d;
+  --ccxp-lite-radius-md: 14px;
+  --ccxp-lite-radius-sm: 10px;
+  --ccxp-lite-radius-input: 8px;
+  --ccxp-lite-radius-full: 999px;
+  --ccxp-lite-font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--ccxp-lite-font-sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ccxp-lite-text);
+  background-color: var(--ccxp-lite-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+body[data-view-mode="popup"] {
+  width: 340px;
+}
+
+body[data-view-mode="sidepanel"],
+body[data-view-mode="split"],
+body[data-view-mode="full"] {
+  width: 100%;
+  min-height: 100vh;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ==================== 原系統風格膠囊開關 (Pill Switch) ==================== */
+.ccxp-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 36px;
+  min-width: 36px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(82, 96, 109, 0.22);
+  border-radius: var(--ccxp-lite-radius-full);
+  background-color: rgba(82, 96, 109, 0.12);
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+  flex-shrink: 0;
+}
+
+.ccxp-switch::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.2);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.ccxp-switch[aria-checked="true"] {
+  background-color: var(--ccxp-lite-primary);
+  border-color: var(--ccxp-lite-primary);
+}
+
+.ccxp-switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+}
+
+/* ==================== 共用按鈕與表單元件 ==================== */
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-text);
+  background-color: var(--ccxp-lite-surface);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-full);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.pill-btn:hover {
+  background-color: var(--ccxp-lite-primary-surface);
+  border-color: var(--ccxp-lite-primary-border);
+  color: var(--ccxp-lite-primary);
+}
+
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: var(--ccxp-lite-primary);
+  border: 1px solid var(--ccxp-lite-primary);
+  border-radius: var(--ccxp-lite-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease;
+}
+
+.primary-btn:hover {
+  background-color: var(--ccxp-lite-primary-hover);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ccxp-lite-primary);
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.ccxp-input,
+.ccxp-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 11px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ccxp-lite-text);
+  background-color: var(--ccxp-lite-bg);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-input);
+  outline: none;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.ccxp-input:focus,
+.ccxp-select:focus {
+  background-color: #ffffff;
+  border-color: var(--ccxp-lite-primary);
+  box-shadow: 0 0 0 3px rgba(159, 95, 165, 0.12);
+}
+
+.select-compact {
+  width: auto;
+  min-width: 132px;
+  height: 32px;
+}
+
+.auto-save-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-primary);
+  background-color: var(--ccxp-lite-primary-active-surface);
+  border-radius: var(--ccxp-lite-radius-full);
+}
+
+.auto-save-pill[data-tone="error"] {
+  color: #b91c1c;
+  background-color: rgba(220, 38, 38, 0.12);
+}
+
+.auto-save-pill[data-tone="warn"] {
+  color: #b45309;
+  background-color: rgba(245, 158, 11, 0.14);
+}
+
+.setting-sub[data-status="ok"] {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.setting-sub[data-status="warn"] {
+  color: #b45309;
+  font-weight: 500;
+}
+
+.setting-sub[data-status="error"] {
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-primary);
+  background-color: var(--ccxp-lite-primary-surface);
+  border: 1px solid var(--ccxp-lite-primary-border);
+  border-radius: var(--ccxp-lite-radius-full);
+}
+
+/* ==================== 短選單模式 (Compact Shell) ==================== */
+.compact-shell {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 4px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.brand-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.brand-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ccxp-lite-text);
+}
+
+.brand-caption {
+  font-size: 11.5px;
+  color: var(--ccxp-lite-text-muted);
+}
+
+.compact-card,
+.pane-card {
+  background-color: var(--ccxp-lite-surface);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-md);
+  padding: 12px 14px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+}
+
+.setting-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.setting-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-text);
+}
+
+.setting-sub {
+  font-size: 12px;
+  color: var(--ccxp-lite-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setting-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.row-divider {
+  height: 1px;
+  background-color: var(--ccxp-lite-border);
+  margin: 8px 0;
+}
+
+.cred-drawer {
+  margin-top: 8px;
+  padding: 10px;
+  background-color: var(--ccxp-lite-bg);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-sm);
+}
+
+.cred-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.cred-Grid .ccxp-input {
+  background-color: #ffffff;
+}
+
+.cred-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.compact-footer {
+  display: flex;
+}
+
+.split-open-btn {
+  width: 100%;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-text-muted);
+  background-color: var(--ccxp-lite-surface);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-sm);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.split-open-btn:hover {
+  color: var(--ccxp-lite-primary);
+  border-color: var(--ccxp-lite-primary-border);
+  background-color: var(--ccxp-lite-primary-surface);
+}
+
+/* ==================== 側邊分割 / 完整設定模式 (Full / Split Shell) ==================== */
+.full-shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar-pane {
+  background-color: var(--ccxp-lite-bg);
+  border-right: 1px solid var(--ccxp-lite-border);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.icon-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ccxp-lite-text-muted);
+  background-color: var(--ccxp-lite-surface);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-full);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.icon-pill-btn:hover {
+  color: var(--ccxp-lite-primary);
+  border-color: var(--ccxp-lite-primary-border);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nav-group-label {
+  margin: 10px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ccxp-lite-primary);
+  letter-spacing: 0.02em;
+}
+
+.nav-item {
+  text-align: left;
+  height: 36px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ccxp-lite-text);
+  background: transparent;
+  border: none;
+  border-radius: var(--ccxp-lite-radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.nav-item:hover {
+  background-color: var(--ccxp-lite-primary-surface);
+}
+
+.nav-item.active {
+  background-color: var(--ccxp-lite-primary-active-surface);
+  color: var(--ccxp-lite-primary);
+  font-weight: 700;
+}
+
+.content-pane {
+  padding: 18px 22px;
+  max-width: 720px;
+  width: 100%;
+}
+
+.content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ccxp-lite-text);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ccxp-lite-text);
+}
+
+.section-desc {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--ccxp-lite-text-muted);
+  line-height: 1.55;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-text);
+}
+
+.field-label-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cross-school-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ccxp-lite-border);
+}
+
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ccxp-lite-border);
+}
+
+.locked-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background-color: var(--ccxp-lite-primary-surface);
+  border: 1px solid var(--ccxp-lite-primary-border);
+  border-radius: var(--ccxp-lite-radius-sm);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ccxp-lite-primary);
+}
+
+.inline-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.input-sm {
+  height: 30px;
+  width: 140px;
+  background-color: #ffffff;
+}
+
+/* ==================== 即時同步進度卡片與日曆事件清單 ==================== */
+.progress-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 13px;
+}
+
+.progress-head-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #15803d;
+  flex-shrink: 0;
+}
+
+.progress-dot[data-active="true"] {
+  background-color: var(--ccxp-lite-primary);
+  box-shadow: 0 0 0 3px rgba(159, 95, 165, 0.22);
+}
+
+.progress-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ccxp-lite-text);
+  flex: 1;
+}
+
+.progress-pct {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ccxp-lite-primary);
+}
+
+.progress-sub-text {
+  font-size: 11.5px;
+  color: var(--ccxp-lite-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-track {
+  width: 100%;
+  height: 5px;
+  background-color: var(--ccxp-lite-bg);
+  border-radius: var(--ccxp-lite-radius-full);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background-color: var(--ccxp-lite-primary);
+  border-radius: var(--ccxp-lite-radius-full);
+  transition: width 200ms ease;
+}
+
+.course-override-list,
+.synced-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.course-override-row,
+.synced-event-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  background-color: var(--ccxp-lite-bg);
+  border: 1px solid var(--ccxp-lite-border);
+  border-radius: var(--ccxp-lite-radius-sm);
+}
+
+.synced-event-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.synced-event-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ccxp-lite-text);
+}
+
+.synced-event-sub {
+  font-size: 11.5px;
+  color: var(--ccxp-lite-text-muted);
+}
+
+.synced-event-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 當在窄側邊欄 (Side Panel / Split Narrow) 時自動轉為緊湊單欄導覽 */
+@media (max-width: 580px) {
+  .full-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--ccxp-lite-border);
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .sidebar-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .nav-group-label {
+    display: none;
+  }
+
+  .nav-item {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    border-radius: var(--ccxp-lite-radius-full);
+  }
+
+  .content-pane {
+    padding: 14px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

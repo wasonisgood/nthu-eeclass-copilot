@@ -1,0 +1,20 @@
+{
+  "name": "nthu-eeclass-copilot",
+  "version": "1.4.0",
+  "description": "NTHU eeclass Copilot｜清大 eeclass 與 OAuth 全能助手：本地 CNN 驗證碼自動登入、AES-GCM 憑證保險箱、Google 日曆作業事件即時同步、課程教材自動同步歸檔與助教工作台",
+  "private": true,
+  "scripts": {
+    "check": "node --check background.js && node --check calendar-sync.js && node --check calendar-content.js && node --check content.js && node --check course-downloader.js && node --check crypto-vault.js && node --check decaptcha.js && node --check options.js"
+  },
+  "keywords": [
+    "nthu",
+    "eeclass",
+    "ccxp",
+    "oauth",
+    "captcha",
+    "google-calendar",
+    "chrome-extension",
+    "manifest-v3"
+  ],
+  "license": "MIT"
+}

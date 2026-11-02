@@ -1,0 +1,23 @@
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor & IDE directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node / Build / Packaging artifacts
+node_modules/
+dist/
+build/
+*.zip
+*.crx
+*.pem
+
+# Local secrets & environment variables
+.env
+.env.*
+*.local

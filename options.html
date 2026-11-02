@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NTHU eeclass Copilot 設定</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body data-view-mode="popup">
+  <!-- ==================== 短選單模式 (Compact Popup：僅顯示高頻率設定) ==================== -->
+  <div id="compact-shell" class="compact-shell">
+    <header class="compact-header">
+      <div class="brand-row">
+        <img src="assets/logo-32.png" alt="" class="brand-logo">
+        <span class="brand-title">eeclass Copilot</span>
+      </div>
+      <span id="compact-toast" class="auto-save-pill" hidden>已自動儲存</span>
+    </header>
+
+    <div class="compact-card">
+      <div class="setting-row">
+        <div class="setting-copy">
+          <span class="setting-label">自動辨識並登入</span>
+          <span id="compact-account-summary" class="setting-sub">尚未設定學號密碼</span>
+        </div>
+        <div class="setting-controls">
+          <button type="button" id="compact-edit-account-btn" class="pill-btn">設定帳密</button>
+          <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-sync-key="autoLogin"></button>
+        </div>
+      </div>
+
+      <!-- 點擊「設定帳密」才展開的輸入區 (帳密需時間輸入，獨立儲存按鈕) -->
+      <form id="compact-cred-form" class="cred-drawer" hidden autocomplete="off" spellcheck="false">
+        <div class="cred-grid">
+          <input type="text" id="compact-id" class="ccxp-input" placeholder="學號 / 員工編號" maxlength="42">
+          <input type="password" id="compact-password" class="ccxp-input" placeholder="密碼 (AES-GCM 加密)" maxlength="18">
+        </div>
+        <div class="cred-actions">
+          <button type="button" id="compact-cancel-cred" class="pill-btn">取消</button>
+          <button type="submit" class="primary-btn">儲存帳密</button>
+        </div>
+      </form>
+
+      <div class="row-divider"></div>
+
+      <div class="setting-row">
+        <div class="setting-copy">
+          <span class="setting-label">自動同步課程新教材</span>
+          <span class="setting-sub">進入課程頁時背景下載新附件</span>
+        </div>
+        <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-student-key="autoSyncCourseFiles"></button>
+      </div>
+
+      <div class="row-divider"></div>
+
+      <div class="setting-row">
+        <div class="setting-copy">
+          <span class="setting-label">顯示教材下載浮動列</span>
+          <span class="setting-sub">課程頁右下角批次下載按鈕</span>
+        </div>
+        <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-student-key="enableDownloaderUI"></button>
+      </div>
+
+      <div class="row-divider"></div>
+
+      <div class="setting-row">
+        <div class="setting-copy">
+          <span class="setting-label">自動同步 Google 日曆事件</span>
+          <span id="compact-cal-summary" class="setting-sub">尚未連結 Google 日曆</span>
+        </div>
+        <div class="setting-controls">
+          <button type="button" id="compact-cal-action-btn" class="pill-btn">連結日曆</button>
+          <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-cal-key="autoSyncCalendar"></button>
+        </div>
+      </div>
+
+      <div class="row-divider"></div>
+
+      <div class="setting-row">
+        <div class="setting-copy">
+          <span class="setting-label">教材存放位置</span>
+          <span class="setting-sub" data-folder-display>預設：系統「下載」/ eeclass_教材（自動建立）</span>
+        </div>
+        <div class="setting-controls">
+          <button type="button" class="pill-btn folder-verify-trigger" hidden>檢查可存性</button>
+          <button type="button" class="pill-btn folder-pick-trigger">選擇資料夾</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 即時同步與下載進度卡片 (Popup 內直接檢視目前是否有同步及進度) -->
+    <div id="compact-progress-card" class="compact-card progress-status-card">
+      <div class="progress-head-row">
+        <span class="progress-dot" data-progress-dot data-active="false"></span>
+        <span class="progress-title" data-progress-title>目前無進行中同步任務</span>
+        <span class="progress-pct" data-progress-pct></span>
+      </div>
+      <div class="progress-sub-text" data-progress-detail>進入課程或最近事件頁面時將自動顯示即時進度</div>
+      <div class="progress-track">
+        <div class="progress-fill" data-progress-fill></div>
+      </div>
+    </div>
+
+    <footer class="compact-footer">
+      <button type="button" id="open-split-view-btn" class="split-open-btn">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2"/>
+          <line x1="9.5" y1="2.5" x2="9.5" y2="13.5"/>
+        </svg>
+        <span>在側邊分割視窗開啟完整設定</span>
+      </button>
+    </footer>
+  </div>
+
+  <!-- ==================== 側邊分割 / 完整設定模式 (Full / Split Dashboard) ==================== -->
+  <div id="full-shell" class="full-shell" hidden>
+    <aside class="sidebar-pane">
+      <div class="sidebar-header">
+        <div class="brand-row">
+          <img src="assets/logo-32.png" alt="" class="brand-logo">
+          <div>
+            <div class="brand-title">eeclass Copilot</div>
+            <div class="brand-caption">清大數位學習全能助手</div>
+          </div>
+        </div>
+        <button type="button" id="dock-split-window-btn" class="icon-pill-btn" title="將瀏覽器與設定視窗左右並排分割">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1.5" y="2" width="13" height="12" rx="2"/>
+            <line x1="8" y1="2" x2="8" y2="14"/>
+          </svg>
+          <span>左右並排視窗</span>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav" role="tablist">
+        <div class="nav-group-label">一般學生</div>
+        <button type="button" class="nav-item active" data-section="student-auth">登入與帳號</button>
+        <button type="button" class="nav-item" data-section="student-download">教材下載與同步</button>
+        <button type="button" class="nav-item" data-section="student-calendar">Google 日曆與事件</button>
+
+        <div class="nav-group-label">助教專區 (TA)</div>
+        <button type="button" class="nav-item" data-section="ta-homework">作業與批改</button>
+        <button type="button" class="nav-item" data-section="ta-grading">成績與名單</button>
+        <button type="button" class="nav-item" data-section="ta-publishing">教材與公告</button>
+
+        <div class="nav-group-label">系統與進階</div>
+        <button type="button" class="nav-item" data-section="advanced-security">進階資安與自訂金鑰</button>
+      </nav>
+    </aside>
+
+    <main class="content-pane">
+      <header class="content-header">
+        <h1 id="current-section-title" class="section-heading">登入與帳號</h1>
+        <span id="full-toast" class="auto-save-pill" hidden>已自動儲存</span>
+      </header>
+
+      <!-- 完整模式頂部即時同步進度橫幅 -->
+      <div class="pane-card progress-status-card" style="margin-bottom: 14px;">
+        <div class="progress-head-row">
+          <span class="progress-dot" data-progress-dot data-active="false"></span>
+          <span class="progress-title" data-progress-title>目前無進行中同步任務</span>
+          <span class="progress-pct" data-progress-pct></span>
+        </div>
+        <div class="progress-sub-text" data-progress-detail>系統待命中；當同步教材或 Google 日曆時會在此顯示即時進度</div>
+        <div class="progress-track">
+          <div class="progress-fill" data-progress-fill></div>
+        </div>
+      </div>
+
+      <div class="content-body">
+        <!-- 分類 1：一般學生 - 登入與帳號 -->
+        <section class="settings-section active" data-section-panel="student-auth">
+          <div class="pane-card">
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">驗證碼辨識完成後自動登入</span>
+                <span class="setting-sub">進入清大 OAuth 頁面時自動填充並送出表單</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-sync-key="autoLogin"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">保持登入狀態至瀏覽器關閉</span>
+                <span class="setting-sub">自動勾選 OAuth 頁面上的保持登入選項</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-sync-key="keep"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">校外選修學生身分</span>
+                <span class="setting-sub">展開跨校選修學校選單與身分證字號欄位</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-sync-key="crossSchool"></button>
+            </div>
+          </div>
+
+          <!-- 帳密設定卡：需輸入時間，獨立儲存按鈕 -->
+          <form id="full-cred-form" class="pane-card" autocomplete="off" spellcheck="false">
+            <div class="card-title-row">
+              <h2 class="card-title">登入帳號與密碼</h2>
+              <span id="security-badge" class="badge-pill">AES-GCM-256 加密保護</span>
+            </div>
+
+            <div id="vault-locked-banner" class="locked-banner" hidden>
+              <span>此帳號已受自訂金鑰鎖定</span>
+              <div class="inline-row">
+                <input type="password" id="unlock-pin-input" class="ccxp-input input-sm" placeholder="輸入自訂金鑰解鎖">
+                <button type="button" id="unlock-pin-btn" class="pill-btn">解鎖</button>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="id">學號 / 員工編號</label>
+                <input type="text" id="id" class="ccxp-input" maxlength="42" placeholder="未填寫則僅自動填寫驗證碼">
+              </div>
+
+              <div class="form-field">
+                <div class="field-label-bar">
+                  <label for="password">密碼</label>
+                  <button type="button" id="toggle-password" class="link-btn">顯示密碼</button>
+                </div>
+                <input type="password" id="password" class="ccxp-input" maxlength="18" placeholder="加密儲存於本機">
+              </div>
+            </div>
+
+            <div id="cross-school-fields" class="cross-school-box" hidden>
+              <div class="form-grid">
+                <div class="form-field">
+                  <label for="school">所屬學校</label>
+                  <select id="school" class="ccxp-select">
+                    <option value="">請選擇學校</option>
+                    <option value="0001">0001 國立政治大學</option>
+                    <option value="0002">0002 國立清華大學</option>
+                    <option value="0003">0003 國立台灣大學</option>
+                    <option value="0004">0004 國立台灣師範大學</option>
+                    <option value="0005">0005 國立成功大學</option>
+                    <option value="0006">0006 國立中興大學</option>
+                    <option value="0007">0007 國立陽明交通大學</option>
+                    <option value="0008">0008 國立中央大學</option>
+                    <option value="0009">0009 國立中山大學</option>
+                    <option value="0012">0012 國立台灣海洋大學</option>
+                    <option value="0013">0013 國立中正大學</option>
+                    <option value="0014">0014 國立高雄師範大學</option>
+                    <option value="0015">0015 國立彰化師範大學</option>
+                    <option value="0016">0016 國立陽明大學</option>
+                    <option value="0017">0017 國立台北大學</option>
+                    <option value="0018">0018 國立嘉義大學</option>
+                    <option value="0019">0019 國立高雄大學</option>
+                    <option value="0020">0020 國立東華大學</option>
+                    <option value="0021">0021 國立暨南國際大學</option>
+                    <option value="0022">0022 國立台灣科技大學</option>
+                    <option value="0023">0023 國立雲林科技大學</option>
+                    <option value="0024">0024 國立屏東科技大學</option>
+                    <option value="0025">0025 國立台北科技大學</option>
+                    <option value="0028">0028 國立台北藝術大學</option>
+                    <option value="0029">0029 國立台灣藝術大學</option>
+                    <option value="0030">0030 國立台東大學</option>
+                    <option value="0031">0031 國立宜蘭大學</option>
+                    <option value="0032">0032 國立聯合大學</option>
+                    <option value="0033">0033 國立虎尾科技大學</option>
+                    <option value="0035">0035 國立台南藝術大學</option>
+                    <option value="0036">0036 國立台南大學</option>
+                    <option value="0037">0037 國立台北教育大學</option>
+                    <option value="0038">0038 國立清華大學南大校區</option>
+                    <option value="0039">0039 國立台中教育大學</option>
+                    <option value="0042">0042 國立澎湖科技大學</option>
+                    <option value="0043">0043 國立高雄科技大學</option>
+                    <option value="0044">0044 國立屏東大學</option>
+                    <option value="0110">0110 國立體育大學</option>
+                    <option value="0118">0118 國立臺北護理健康大學</option>
+                    <option value="0137">0137 國立台中科技大學</option>
+                    <option value="0138">0138 國立勤益科技大學</option>
+                    <option value="0140">0140 國立高雄餐旅大學</option>
+                    <option value="0142">0142 國立臺北商業大學</option>
+                    <option value="0143">0143 國立金門大學</option>
+                    <option value="0A01">0A01 國立空中大學</option>
+                    <option value="1001">1001 東海大學</option>
+                    <option value="1002">1002 輔仁大學</option>
+                    <option value="1003">1003 東吳大學</option>
+                    <option value="1004">1004 中原大學</option>
+                    <option value="1005">1005 淡江大學</option>
+                    <option value="1006">1006 中國文化大學</option>
+                    <option value="1007">1007 逢甲大學</option>
+                    <option value="1008">1008 靜宜大學</option>
+                    <option value="1009">1009 長庚大學</option>
+                    <option value="1010">1010 元智大學</option>
+                    <option value="1011">1011 中華大學</option>
+                    <option value="1012">1012 大葉大學</option>
+                    <option value="1014">1014 義守大學</option>
+                    <option value="1015">1015 世新大學</option>
+                    <option value="1016">1016 銘傳大學</option>
+                    <option value="1017">1017 實踐大學</option>
+                    <option value="1018">1018 朝陽科技大學</option>
+                    <option value="1019">1019 高雄醫學大學</option>
+                    <option value="1022">1022 大同大學</option>
+                    <option value="1023">1023 南臺科技大學</option>
+                    <option value="1027">1027 慈濟大學</option>
+                    <option value="1028">1028 台北醫學大學</option>
+                    <option value="1029">1029 中山醫學大學</option>
+                    <option value="1032">1032 明新科技大學</option>
+                    <option value="1033">1033 長榮大學</option>
+                    <option value="1035">1035 中國醫藥大學</option>
+                    <option value="1039">1039 玄奘大學</option>
+                    <option value="1041">1041 明志科技大學</option>
+                    <option value="1048">1048 亞洲大學</option>
+                    <option value="1049">1049 馬偕醫學大學</option>
+                    <option value="3001">3001 台北市立大學</option>
+                    <option value="M009">M009 國防大學</option>
+                    <option value="9999">9999 測試外校</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="cid">身分證字號</label>
+                  <input type="password" id="cid" class="ccxp-input" placeholder="同受 AES-GCM 加密">
+                </div>
+              </div>
+            </div>
+
+            <div class="card-footer">
+              <button type="button" id="clear-auth-btn" class="pill-btn">清除已存帳密</button>
+              <button type="submit" class="primary-btn">儲存帳密</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- 分類 2：一般學生 - 教材下載與同步 -->
+        <section class="settings-section" data-section-panel="student-download" hidden>
+          <div class="pane-card">
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">教材存放資料夾</span>
+                <span class="setting-sub" data-folder-display>預設目錄：系統「下載」/ eeclass_教材（不存在時自動建立）</span>
+              </div>
+              <div class="setting-controls">
+                <button type="button" class="pill-btn folder-verify-trigger" hidden>檢查可存性</button>
+                <button type="button" id="reset-folder-btn" class="pill-btn" hidden>恢復預設</button>
+                <button type="button" class="primary-btn folder-pick-trigger">選擇本機資料夾</button>
+              </div>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">進入課程頁面時自動同步下載新教材</span>
+                <span class="setting-sub">自動比對紀錄，僅在背景下載尚未同步的新附件</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-student-key="autoSyncCourseFiles"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">顯示課程頁右下角下載工具列</span>
+                <span class="setting-sub">提供「依單元下載所有檔案」與快速切換資料夾按鈕</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-student-key="enableDownloaderUI"></button>
+            </div>
+          </div>
+
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">個別附件下載方式</h2>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">在單一附件旁顯示「存入指定目錄」按鈕</span>
+                <span class="setting-sub">保留原下載連結，按住 Shift 點擊按鈕可另選單次存放資料夾</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-student-key="showInlineDirDownloadBtn"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">直接點擊原附件連結時自動歸檔至指定目錄</span>
+                <span class="setting-sub">啟用後點擊原連結亦依單元分類（按住 Alt 點擊可維持原方式）</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-student-key="interceptSingleDownload"></button>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">同名檔案處理方式</span>
+                <span class="setting-sub">當目標資料夾已有相同檔名時的處理策略</span>
+              </div>
+              <select id="conflictAction" class="ccxp-select select-compact" data-student-select="conflictAction">
+                <option value="uniquify">自動加上序號</option>
+                <option value="overwrite">覆蓋舊檔</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">已同步教材紀錄</span>
+                <span id="synced-count-label" class="setting-sub">目前已記錄 0 筆教材</span>
+              </div>
+              <button type="button" id="clear-sync-btn" class="pill-btn">重置紀錄</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 分類 3：一般學生 - Google 日曆與事件自動同步 -->
+        <section class="settings-section" data-section-panel="student-calendar" hidden>
+          <!-- 卡片 1：Google 日曆授權與立即同步 -->
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">Google 日曆授權與連線狀態</h2>
+              <span id="cal-auth-badge" class="badge-pill">尚未授權</span>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label" id="cal-account-title">Google 帳號授權</span>
+                <span class="setting-sub" id="cal-account-sub">授權後將自動同步 eeclass 最近事件與作業開始/截止時間及繳交連結</span>
+              </div>
+              <div class="setting-controls">
+                <button type="button" id="cal-toggle-setup-btn" class="pill-btn">授權參數設定</button>
+                <button type="button" id="cal-disconnect-btn" class="pill-btn" hidden>解除連結</button>
+                <button type="button" id="cal-connect-btn" class="primary-btn">索取 Google 日曆授權</button>
+              </div>
+            </div>
+
+            <!-- OAuth Client ID / 快速 Token 設定抽屜 -->
+            <div id="cal-setup-drawer" class="cred-drawer" hidden>
+              <p class="section-desc" style="margin-bottom: 8px;">
+                <strong>方式 A（OAuth Client ID 視窗授權）：</strong>於 Google Cloud Console 建立 Web 應用程式 OAuth 用戶端 ID，將下方重新導向 URI 加入白名單後貼上 Client ID，即可點擊「索取 Google 日曆授權」彈出登入視窗。<br>
+                <strong>方式 B（快速 Token 授權）：</strong>亦可直接在下方貼上具備 <code>calendar</code> 權限之 Access Token 立即綁定。
+              </p>
+              <div class="cred-grid">
+                <div class="inline-row" style="width: 100%;">
+                  <input type="text" id="cal-redirect-uri" class="ccxp-input" readonly title="擴充功能專屬 Redirect URI">
+                  <button type="button" id="copy-redirect-uri-btn" class="pill-btn">複製導向網址</button>
+                </div>
+                <input type="text" id="cal-client-id" class="ccxp-input" placeholder="選填：Google OAuth 2.0 Client ID (xxx.apps.googleusercontent.com)">
+                <div class="inline-row" style="width: 100%;">
+                  <input type="password" id="cal-manual-token" class="ccxp-input" placeholder="或直接貼上 Google OAuth Access Token (ya29....)">
+                  <button type="button" id="cal-bind-token-btn" class="primary-btn">驗證並綁定 Token</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">自動同步並即時更新異動事件</span>
+                <span class="setting-sub">瀏覽最近事件、作業頁面或背景定時巡檢時，若日期或內容有變立即更新日曆</span>
+              </div>
+              <div class="setting-controls">
+                <button type="button" id="cal-sync-now-btn" class="pill-btn">立即從 eeclass 同步</button>
+                <button type="button" class="ccxp-switch" role="switch" aria-checked="true" data-cal-key="autoSyncCalendar"></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 卡片 2：日曆歸檔模式與個別課程指派 -->
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">課程日曆歸檔方式</h2>
+              <button type="button" id="cal-refresh-list-btn" class="pill-btn">重新讀取日曆清單</button>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">預設日曆歸檔模式</span>
+                <span class="setting-sub">選擇所有課程共用同一個日曆、各課程分別建立一個日曆，或加入既有日曆</span>
+              </div>
+              <select id="cal-routing-mode" class="ccxp-select select-compact" style="min-width: 220px;">
+                <option value="unified_auto">所有課程一起加入同一個日曆</option>
+                <option value="per_course_auto">各課程分別建立一個獨立日曆</option>
+                <option value="existing_calendar">加入使用者既有 Google 日曆</option>
+              </select>
+            </div>
+
+            <div id="existing-cal-row" class="setting-row" style="margin-top: 8px;" hidden>
+              <div class="setting-copy">
+                <span class="setting-label">選擇要加入的既有日曆</span>
+                <span class="setting-sub">將事件寫入您 Google 帳號中現有的日曆</span>
+              </div>
+              <select id="cal-existing-select" class="ccxp-select select-compact" style="min-width: 220px;">
+                <option value="primary">主日曆 (Primary)</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-copy" style="margin-bottom: 8px;">
+              <span class="setting-label">個別課程日曆指派（支援將多門特定課程一起加入同一日曆或各自獨立）</span>
+              <span class="setting-sub">可針對單一課程覆寫歸檔方式；變更時已同步之事件將自動遷移至新目標日曆</span>
+            </div>
+            <div id="course-overrides-list" class="course-override-list"></div>
+          </div>
+
+          <!-- 卡片 3：事件開始至結束區間與合理提醒設定 -->
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">事件時間區間與提醒設定</h2>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">事件日期與開始至結束呈現方式</span>
+                <span class="setting-sub">自動擷取作業「開放繳交」作為開始時間、「繳交期限」作為結束時間</span>
+              </div>
+              <select id="cal-span-mode" class="ccxp-select select-compact" style="min-width: 230px;">
+                <option value="start_to_due_with_deadline_alert">完整開放至截止區間 + 截止前精準提醒</option>
+                <option value="start_to_due_single">單一完整區間（開放繳交 → 繳交期限）</option>
+                <option value="due_focus_single">單一截止時段（期限前 1 小時 → 繳交期限）</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">第一階段提醒通知</span>
+                <span class="setting-sub">作業截止前提前一天提醒準備</span>
+              </div>
+              <select id="cal-reminder-1" class="ccxp-select select-compact">
+                <option value="4320">提前 3 天</option>
+                <option value="2880">提前 2 天</option>
+                <option value="1440">提前 1 天 (24 小時)</option>
+                <option value="720">提前 12 小時</option>
+                <option value="-1">停用此提醒</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">第二階段提醒通知</span>
+                <span class="setting-sub">截止當日提前數小時提醒檢查繳交</span>
+              </div>
+              <select id="cal-reminder-2" class="ccxp-select select-compact">
+                <option value="360">提前 6 小時</option>
+                <option value="180">提前 3 小時</option>
+                <option value="120">提前 2 小時</option>
+                <option value="-1">停用此提醒</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">最後倒數提醒通知</span>
+                <span class="setting-sub">截止前最後衝刺提醒</span>
+              </div>
+              <select id="cal-reminder-3" class="ccxp-select select-compact">
+                <option value="60">提前 1 小時</option>
+                <option value="30">提前 30 分鐘</option>
+                <option value="15">提前 15 分鐘</option>
+                <option value="-1">停用此提醒</option>
+              </select>
+            </div>
+
+            <div class="row-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">同時發送 Google 日曆 Email 信件提醒</span>
+                <span class="setting-sub">於截止前 24 小時由 Google 日曆寄發電子郵件通知</span>
+              </div>
+              <button type="button" class="ccxp-switch" role="switch" aria-checked="false" data-cal-key="enableEmailReminder"></button>
+            </div>
+          </div>
+
+          <!-- 卡片 4：已同步事件與作業繳交連結一覽 -->
+          <div class="pane-card">
+            <div class="card-title-row">
+              <h2 class="card-title">已擷取與同步之課程事件</h2>
+              <span id="cal-events-count" class="badge-pill">0 筆事件</span>
+            </div>
+            <div id="cal-events-list" class="synced-events-list"></div>
+          </div>
+        </section>
+
+        <!-- 分類 3~5：助教專區 (動態渲染，全自動儲存) -->
+        <div id="ta-sections-host"></div>
+
+        <!-- 分類 6：進階資安與自訂金鑰 -->
+        <section class="settings-section" data-section-panel="advanced-security" hidden>
+          <form id="advanced-pin-form" class="pane-card" autocomplete="off">
+            <div class="card-title-row">
+              <h2 class="card-title">自訂加密金鑰 (PBKDF2 主密碼)</h2>
+              <button type="button" id="lock-session-btn" class="pill-btn" hidden>立即鎖定記憶體</button>
+            </div>
+            <p class="section-desc">
+              預設情況下，系統已使用 WebCrypto 不可匯出之 <code>AES-GCM-256</code> 金鑰加密保護您的密碼，無須額外設定即可安全自動登入。若您需要更高安全等級，可在此設定自訂主密碼（經 210,000 次 <code>PBKDF2-SHA256</code> 衍生金鑰），每次開啟瀏覽器首次登入時需輸入此金鑰解鎖。
+            </p>
+            <div class="form-field">
+              <label for="masterPin">設定或變更自訂主密碼（留空儲存則恢復預設自動解密模式）</label>
+              <input type="password" id="masterPin" class="ccxp-input" placeholder="輸入自訂主密碼 / PIN 碼">
+            </div>
+            <div class="card-footer">
+              <button type="submit" class="primary-btn">更新加密金鑰設定</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="crypto-vault.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
