@@ -1,10 +1,14 @@
 {
   "name": "nthu-eeclass-copilot",
-  "version": "1.4.0",
+  "version": "1.4.1",
+  "type": "module",
   "description": "NTHU eeclass Copilot｜清大 eeclass 與 OAuth 全能助手：本地 CNN 驗證碼自動登入、AES-GCM 憑證保險箱、Google 日曆作業事件即時同步、課程教材自動同步歸檔與助教工作台",
   "private": true,
   "scripts": {
-    "check": "node --check background.js && node --check calendar-sync.js && node --check calendar-content.js && node --check content.js && node --check course-downloader.js && node --check crypto-vault.js && node --check decaptcha.js && node --check options.js"
+    "check": "node --check background.js && node --check calendar-sync.js && node --check calendar-content.js && node --check content.js && node --check course-downloader.js && node --check crypto-vault.js && node --check decaptcha.js && node --check options.js && node --check swagger.js && node --check eeclass-extension-server.js && node --check agents/auth/permissionGuard.js agents/base/courseInfoAgent.js agents/homework/homeworkCrudAgent.js agents/homework/homeworkSubmissionAuditAgent.js agents/exam/examCrudAgent.js agents/exam/examSubmissionAuditAgent.js agents/bulletin/bulletinCrudAgent.js",
+    "test": "node test/agent-system.test.js && node test/live-data.test.js && node test/mcp-server.test.js",
+    "mcp": "node mcp/eeclass-mcp-server.js",
+    "server": "node server/swagger-server.js"
   },
   "keywords": [
     "nthu",
@@ -16,5 +20,8 @@
     "chrome-extension",
     "manifest-v3"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  }
 }

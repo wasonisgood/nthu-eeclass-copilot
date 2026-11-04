@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NTHU eeclass Copilot｜清大數位學習全能助手",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "清大 eeclass 與 OAuth 全能助手：CNN 驗證碼自動登入、AES-GCM 憑證保險箱、Google 日曆作業事件即時同步、課程教材自動同步歸檔與助教工作台",
   "permissions": [
     "storage",
