@@ -275,9 +275,18 @@
         }, delay);
     }
 
+    function isExtensionValid() {
+        try {
+            return Boolean(typeof chrome !== "undefined" && chrome?.runtime && Boolean(chrome.runtime.id));
+        }
+        catch {
+            return false;
+        }
+    }
+
     function requestDecryptedCredentials(pin = "") {
         return new Promise((resolve) => {
-            if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+            if (!isExtensionValid() || !chrome.runtime?.sendMessage) {
                 resolve({});
                 return;
             }
@@ -782,16 +791,24 @@
         form.dataset.eeclassCaptchaAutofillBound = "true";
 
         if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-            chrome.storage.onChanged.addListener((changes, areaName) => {
-                if (areaName === "local" && changes[STORAGE_KEY]) {
-                    const existingOverlay = targetDocument.getElementById(OVERLAY_ROOT_ID);
-                    if (existingOverlay) {
-                        delete existingOverlay.dataset.userCancelled;
+            try {
+                chrome.storage.onChanged.addListener((changes, areaName) => {
+                    if (!isExtensionValid()) {
+                        return;
                     }
-                    delete form.dataset.eeclassAutoSubmitted;
-                    maybeFillCredentialsAndSubmit(targetDocument, state, { ignoreErrorCheck: true });
-                }
-            });
+                    if (areaName === "local" && changes[STORAGE_KEY]) {
+                        const existingOverlay = targetDocument.getElementById(OVERLAY_ROOT_ID);
+                        if (existingOverlay) {
+                            delete existingOverlay.dataset.userCancelled;
+                        }
+                        delete form.dataset.eeclassAutoSubmitted;
+                        maybeFillCredentialsAndSubmit(targetDocument, state, { ignoreErrorCheck: true });
+                    }
+                });
+            }
+            catch {
+                // Ignore
+            }
         }
     }
 
@@ -810,6 +827,10 @@
             targetDocument.querySelector(CAPTCHA_INPUT_SELECTOR)?.form?.dataset.eeclassCaptchaAutofillBound === "true";
 
         const observer = new MutationObserver(() => {
+            if (!isExtensionValid()) {
+                observer.disconnect();
+                return;
+            }
             if (!tryBindAutofill()) {
                 scheduleRetry();
             }

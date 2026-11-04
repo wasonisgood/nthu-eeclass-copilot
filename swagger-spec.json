@@ -1,0 +1,2392 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "NTHU eeclass Copilot API",
+    "description": "國立清華大學 eeclass 助教/教師工作台分離操控 OpenAPI 規範。 依據「預計要開發的功能」與「助教老師要開發的功能及開發必要指引」所揭露之 DOM 結構與端點設計。 提供課程資訊獲取、作業 CRUD、作業作答打包與批改、測驗 CRUD、測驗問答題人工批改、公告 CRUD， 並內建 RBAC 權限分類鑑權與高危險性操作（刪除、寄信、批改覆寫）之使用者 UI 許可機制。\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "eeclass Copilot Dev Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "本地 Swagger 代理操控伺服器"
+    },
+    {
+      "url": "/api/v1",
+      "description": "擴充套件內部服務通道"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth & Permission",
+      "description": "角色權限分類鑑權與使用者 UI 許可 (Consent) API"
+    },
+    {
+      "name": "Courses (Base)",
+      "description": "基礎：助教與教師課程代號及側欄資訊取得"
+    },
+    {
+      "name": "Homework - Management",
+      "description": "作業本身 CRUD（新增、設定編輯、限制僅無人繳交時刪除）"
+    },
+    {
+      "name": "Homework - Submissions & Grading",
+      "description": "作業作答名單取得、打包下載 (ZIP)、名單匯出與評語成績填入"
+    },
+    {
+      "name": "Exam - Management",
+      "description": "測驗本身 CRUD（新增、編輯、限制僅無人測驗時刪除）"
+    },
+    {
+      "name": "Exam - Grading & Records",
+      "description": "測驗作答名單與個別紀錄取得、問答題評分與評語填入"
+    },
+    {
+      "name": "Bulletin",
+      "description": "課程公告 CRUD 與全體寄信通知"
+    }
+  ],
+  "paths": {
+    "/auth/permissions": {
+      "get": {
+        "tags": [
+          "Auth & Permission"
+        ],
+        "summary": "取得目前使用者角色與操作許可分類",
+        "description": "查詢使用者在系統與課程中的角色（教師、助教、學生、訪客）以及可執行的動作許可權限。",
+        "responses": {
+          "200": {
+            "description": "成功取得權限資訊",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPermissions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/consent/request": {
+      "post": {
+        "tags": [
+          "Auth & Permission"
+        ],
+        "summary": "申請高危險操作之使用者 UI 許可權杖 (Consent Token)",
+        "description": "刪除作業/測驗/公告、全體寄信通知、成績批改等重大變更，必須觸發前端使用者 UI 許可對話框確認後核發短效權杖。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "許可確認成功，發放授權權杖",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "使用者於 UI 拒絕或無權限執行"
+          }
+        }
+      }
+    },
+    "/courses/teaching": {
+      "get": {
+        "tags": [
+          "Courses (Base)"
+        ],
+        "summary": "取得所有所屬為助教或老師的課程代號與清單",
+        "description": "依據預計開發功能第 4 項：取得所有所屬為助教或老師的的課程代號（前述所有功能之基礎）。\n透過爬取「我的課程」列表，依據側欄或課程屬性過濾出身份為「老師」或「助教」的課程代碼與 ID。\n",
+        "responses": {
+          "200": {
+            "description": "成功取得助教/老師課程清單",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeachingCourse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/sidebar": {
+      "get": {
+        "tags": [
+          "Courses (Base)"
+        ],
+        "summary": "取得課程側欄老師、助教與使用者當前身份",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 35657
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得側欄資訊",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseSidebarInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks": {
+      "get": {
+        "tags": [
+          "Homework - Management"
+        ],
+        "summary": "取得課程作業列表",
+        "description": "讀取 /course/homeworkList/{courseId} 表格，解析 tr 內 col-no, 標題連結, 繳交/評分統計(如 4 / 0)，以判斷 canDelete。",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得作業列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HomeworkListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Homework - Management"
+        ],
+        "summary": "新增作業",
+        "description": "點擊新增開啟類型選擇（個人/分組/AI批改），個人作業於 iframe 表單填寫標題、日期、比重並送出。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeworkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作業建立成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeworkDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}": {
+      "get": {
+        "tags": [
+          "Homework - Management"
+        ],
+        "summary": "取得特定作業詳細設定（dt/dd 結構）",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 70800
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得作業詳細設定",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeworkDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Homework - Management"
+        ],
+        "summary": "編輯作業設定",
+        "description": "透過詳細頁標題旁「設定」或列表列內編輯（#lgIframeModalId）開啟 iframe 表單進行修改。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeworkUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "作業更新成功"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Homework - Management"
+        ],
+        "summary": "刪除作業（嚴格約束：僅限未有繳交者）",
+        "description": "依照規範第 1 項「自動新增/編輯/刪除作業與測驗（刪除僅限未有繳交者）」。\n刪除前系統會強制檢查已繳交人數，若 > 0 則拒絕刪除並回傳 409 Conflict。\n必須攜帶使用者 UI 許可權杖 (X-Consent-Token)。\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          },
+          {
+            "ConsentTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Consent-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "經前端 UI 彈窗確認之許可權杖"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "作業刪除成功"
+          },
+          "409": {
+            "description": "拒絕刪除：已有學生繳交作業，不允許刪除"
+          },
+          "403": {
+            "description": "權限不足或未通過 UI 許可"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}/submissions": {
+      "get": {
+        "tags": [
+          "Homework - Submissions & Grading"
+        ],
+        "summary": "取得作業名單（已交、未交、退回重寫）",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "submitted",
+                "not_submitted",
+                "rejected"
+              ],
+              "default": "submitted"
+            },
+            "description": "名單分類：已交(submitList)、未交(noSubmitList)、退回重寫(rejectList)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得名單",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}/submissions/{reportId}": {
+      "get": {
+        "tags": [
+          "Homework - Submissions & Grading"
+        ],
+        "summary": "取得個別學生作業繳交內容與現有評分",
+        "description": "進入 /homework/report/{reportId} 讀取學生作業標題、附件連結（/filedownload/）及目前批改狀態。",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得個別繳交詳情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}/package-download": {
+      "post": {
+        "tags": [
+          "Homework - Submissions & Grading"
+        ],
+        "summary": "打包下載繳交作業 (ZIP)",
+        "description": "依照指引從已交名單頁點擊「打包下載」，取得包含所有附件與系統文字檔之 ZIP 壓縮檔。",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "匯出 ZIP 檔串流或下載連結",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "downloadUrl": {
+                      "type": "string"
+                    },
+                    "fileName": {
+                      "type": "string"
+                    },
+                    "itemCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}/export": {
+      "post": {
+        "tags": [
+          "Homework - Submissions & Grading"
+        ],
+        "summary": "匯出作業繳交名單",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "selected"
+                    ],
+                    "default": "all",
+                    "description": "全部或已選擇"
+                  },
+                  "selectedReportIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "includeNotSubmitted": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "匯出檔案清冊資料"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}/submissions/{reportId}/audit": {
+      "post": {
+        "tags": [
+          "Homework - Submissions & Grading"
+        ],
+        "summary": "填入作業評語與成績批改",
+        "description": "填寫分數、富文字評語、值得觀摩勾選、是否寄送通知信。\n需使用者確認，若勾選寄送通知信將發信給學生。\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeworkAuditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批改儲存成功"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/homeworks/{homeworkId}/import-scores": {
+      "post": {
+        "tags": [
+          "Homework - Submissions & Grading"
+        ],
+        "summary": "自動同步匯入作業評語與成績",
+        "description": "依據規範第 3 項「自動同步匯入評語與成績」，批次更新已交學生之分數與評語。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          },
+          {
+            "ConsentTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "homeworkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Consent-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HomeworkBatchAuditItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批次匯入完成"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/exams": {
+      "get": {
+        "tags": [
+          "Exam - Management"
+        ],
+        "summary": "取得課程測驗列表",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得測驗列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExamListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Exam - Management"
+        ],
+        "summary": "新增測驗",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExamCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "測驗新增成功"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/exams/{examId}": {
+      "get": {
+        "tags": [
+          "Exam - Management"
+        ],
+        "summary": "讀取測驗設定（dt/dd 結構）",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 8633
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得測驗設定",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Exam - Management"
+        ],
+        "summary": "編輯測驗設定",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExamUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "測驗設定更新成功"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Exam - Management"
+        ],
+        "summary": "刪除測驗（嚴格約束：僅限未有測驗/繳交者）",
+        "description": "依照規範第 1 項，檢查已測驗人數，若 > 0 則拒絕刪除並回傳 409。\n需要使用者 UI 許可 (Consent Token)。\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          },
+          {
+            "ConsentTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Consent-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "測驗刪除成功"
+          },
+          "409": {
+            "description": "拒絕刪除：已有學生完成測驗，不允許刪除"
+          },
+          "403": {
+            "description": "權限不足或無 UI 許可"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/exams/{examId}/records": {
+      "get": {
+        "tags": [
+          "Exam - Grading & Records"
+        ],
+        "summary": "取得成員測驗紀錄名單（作答名單）",
+        "description": "解析 `/kexam/{kexamId}/membersRecord`（含 key 權杖處理），提供已完成、未完成、測驗中、待批改篩選。",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "finished",
+                "unfinished",
+                "testing",
+                "pending_audit",
+                "anomaly"
+              ],
+              "default": "finished"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得作答紀錄列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamMembersRecordResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/exams/{examId}/records/{recordId}": {
+      "get": {
+        "tags": [
+          "Exam - Grading & Records"
+        ],
+        "summary": "取得個別學生作答紀錄（選擇題自動批改與問答題題目）",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得作答明細",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamRecordDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/exams/{examId}/records/{recordId}/questions/{questionId}/audit": {
+      "post": {
+        "tags": [
+          "Exam - Grading & Records"
+        ],
+        "summary": "填入測驗問答題評分與評語（人工批改）",
+        "description": "定位至 `div.state-panel` 觸發編輯區，輸入分數與富文字評語，\n並同步至隱藏欄位 `textarea[name^=essay_audit]` 後送出。\n",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "questionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "essay_audit83754"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionAuditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "問答題評分評語送出成功"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/exams/{examId}/import-scores": {
+      "post": {
+        "tags": [
+          "Exam - Grading & Records"
+        ],
+        "summary": "自動同步匯入測驗問答題成績與評語",
+        "description": "批次填入問答題成績與評語，需使用者確認許可。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          },
+          {
+            "ConsentTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "examId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Consent-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ExamBatchAuditItem"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批次同步測驗評分完成"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/bulletins": {
+      "get": {
+        "tags": [
+          "Bulletin"
+        ],
+        "summary": "取得課程公告列表",
+        "description": "解析 /course/bulletin/{courseId} 表格中 tr 的 td.col-name a.fs-bulletin-item、項次與日期。",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功取得公告列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BulletinListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bulletin"
+        ],
+        "summary": "新增公告",
+        "description": "點擊新增按鈕（span.text 文字「新增」），透過 modal iframe 載入 /bulletin/editContent/0/ 填寫標題、起訖日與內容後送出。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulletinCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "公告建立成功"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/bulletins/{bulletinId}": {
+      "put": {
+        "tags": [
+          "Bulletin"
+        ],
+        "summary": "編輯公告",
+        "description": "列表選單點擊「編輯」（icon fa-edit，路徑 /bulletin/editContent/{bulletinId}/）開啟 iframe 表單更新。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "bulletinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulletinUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "公告更新成功"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Bulletin"
+        ],
+        "summary": "刪除公告",
+        "description": "列表選單點擊「刪除」（icon fa-trash-alt，端點 /ajax/sys.app.bulletin/del/），需 UI 許可確認。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          },
+          {
+            "ConsentTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "bulletinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Consent-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "公告刪除成功"
+          }
+        }
+      }
+    },
+    "/courses/{courseId}/bulletins/{bulletinId}/notify": {
+      "post": {
+        "tags": [
+          "Bulletin"
+        ],
+        "summary": "寄信通知全體成員",
+        "description": "對應 `data-role=\"mailNotify\"`，觸發發送郵件給所有修課成員（含教師與助教）。高風險操作，必須 UI 許可。",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {
+            "RoleAuth": [
+              "teacher",
+              "assistant"
+            ]
+          },
+          {
+            "ConsentTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "bulletinId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "X-Consent-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "寄信通知作業已排程送出"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-KEY"
+      },
+      "RoleAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-User-Role",
+        "description": "使用者角色 (teacher | assistant | student | guest)"
+      },
+      "ConsentTokenAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Consent-Token",
+        "description": "經前端 UI 確認後簽發之短效動作授權權杖"
+      }
+    },
+    "schemas": {
+      "UserPermissions": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "example": "111062501"
+          },
+          "userName": {
+            "type": "string",
+            "example": "王大明"
+          },
+          "systemRole": {
+            "type": "string",
+            "enum": [
+              "teacher",
+              "assistant",
+              "student",
+              "admin"
+            ]
+          },
+          "teachingCoursesCount": {
+            "type": "integer",
+            "example": 2
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "homework:create",
+              "homework:delete_safe",
+              "exam:audit",
+              "bulletin:manage"
+            ]
+          }
+        }
+      },
+      "ConsentRequest": {
+        "type": "object",
+        "required": [
+          "action",
+          "targetType",
+          "targetId",
+          "reason"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "delete_homework",
+              "delete_exam",
+              "delete_bulletin",
+              "broadcast_email",
+              "batch_import_scores"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "homework",
+              "exam",
+              "bulletin",
+              "score_batch"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "example": "70800"
+          },
+          "courseId": {
+            "type": "integer",
+            "example": 35657
+          },
+          "reason": {
+            "type": "string",
+            "example": "作業因排程調整需刪除重設"
+          }
+        }
+      },
+      "ConsentResponse": {
+        "type": "object",
+        "properties": {
+          "consentToken": {
+            "type": "string",
+            "example": "cst_98af21d09e5a4d6f83b"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          }
+        }
+      },
+      "TeachingCourse": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "integer",
+            "example": 35657
+          },
+          "courseCode": {
+            "type": "string",
+            "example": "11310LAW100100"
+          },
+          "courseName": {
+            "type": "string",
+            "example": "行政法一"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "teacher",
+              "assistant"
+            ],
+            "example": "assistant"
+          },
+          "teachers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assistants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CourseSidebarInfo": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "integer"
+          },
+          "courseCode": {
+            "type": "string"
+          },
+          "teachers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assistants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentUserIdentity": {
+            "type": "string",
+            "example": "助教"
+          }
+        }
+      },
+      "HomeworkListItem": {
+        "type": "object",
+        "properties": {
+          "homeworkId": {
+            "type": "integer",
+            "example": 70800
+          },
+          "title": {
+            "type": "string",
+            "example": "期中考備案"
+          },
+          "isGroup": {
+            "type": "boolean",
+            "example": false
+          },
+          "submittedCount": {
+            "type": "integer",
+            "example": 4
+          },
+          "gradedCount": {
+            "type": "integer",
+            "example": 0
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-10-28 10:00"
+          },
+          "deadline": {
+            "type": "string",
+            "example": "2026-10-28 12:30"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "是否可刪除（依規則：submittedCount === 0）",
+            "example": false
+          }
+        }
+      },
+      "HomeworkDetail": {
+        "type": "object",
+        "properties": {
+          "homeworkId": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "group",
+              "ai_gradable"
+            ],
+            "example": "personal"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": "string"
+          },
+          "allowDelay": {
+            "type": "boolean"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "auditMode": {
+            "type": "integer",
+            "description": "1 直接打分數, 2 使用評分表"
+          },
+          "gradeSearch": {
+            "type": "integer",
+            "description": "1 結束後開放, 2 不開放"
+          },
+          "view": {
+            "type": "integer",
+            "description": "1 開放, 2 不開放, 3 截止後開放"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "HomeworkCreateRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "type",
+          "startDate",
+          "deadline"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "group",
+              "ai_gradable"
+            ],
+            "default": "personal"
+          },
+          "isDraft": {
+            "type": "boolean",
+            "default": false
+          },
+          "description": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-11-03 09:00"
+          },
+          "deadline": {
+            "type": "string",
+            "example": "2026-11-10 23:59"
+          },
+          "allowDelay": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "default": 2
+          },
+          "weight": {
+            "type": "integer",
+            "default": 10
+          },
+          "auditMode": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "default": 1
+          },
+          "gradeSearch": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "default": 2
+          },
+          "view": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "default": 2
+          }
+        }
+      },
+      "HomeworkUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "isDraft": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": "string"
+          },
+          "allowDelay": {
+            "type": "integer"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "auditMode": {
+            "type": "integer"
+          },
+          "gradeSearch": {
+            "type": "integer"
+          },
+          "view": {
+            "type": "integer"
+          }
+        }
+      },
+      "SubmissionListResponse": {
+        "type": "object",
+        "properties": {
+          "homeworkId": {
+            "type": "integer"
+          },
+          "totalStudents": {
+            "type": "integer",
+            "example": 68
+          },
+          "submittedCount": {
+            "type": "integer",
+            "example": 4
+          },
+          "delayedCount": {
+            "type": "integer",
+            "example": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionItem"
+            }
+          }
+        }
+      },
+      "SubmissionItem": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "integer",
+            "example": 104521
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "submitTime": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string",
+            "example": "85"
+          },
+          "isGraded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SubmissionDetail": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "integer"
+          },
+          "homeworkId": {
+            "type": "integer"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "lastModifiedTime": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileName": {
+                  "type": "string"
+                },
+                "downloadUrl": {
+                  "type": "string"
+                },
+                "fileSize": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "currentAudit": {
+            "$ref": "#/components/schemas/HomeworkAuditRequest"
+          }
+        }
+      },
+      "HomeworkAuditRequest": {
+        "type": "object",
+        "required": [
+          "auditScore"
+        ],
+        "properties": {
+          "auditScore": {
+            "type": "number",
+            "example": 88
+          },
+          "isModelStudent": {
+            "type": "boolean",
+            "description": "是否標記為值得觀摩",
+            "default": false
+          },
+          "commentHtml": {
+            "type": "string",
+            "description": "富文字評語 HTML",
+            "example": "<p>論理完整，引用判決得當。</p>"
+          },
+          "sendEmailNotification": {
+            "type": "boolean",
+            "description": "是否發信通知繳交者",
+            "default": false
+          }
+        }
+      },
+      "HomeworkBatchAuditItem": {
+        "type": "object",
+        "required": [
+          "studentId",
+          "auditScore"
+        ],
+        "properties": {
+          "studentId": {
+            "type": "string"
+          },
+          "reportId": {
+            "type": "integer"
+          },
+          "auditScore": {
+            "type": "number"
+          },
+          "commentHtml": {
+            "type": "string"
+          },
+          "sendNotification": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "ExamListItem": {
+        "type": "object",
+        "properties": {
+          "examId": {
+            "type": "integer",
+            "example": 8633
+          },
+          "kexamId": {
+            "type": "integer",
+            "example": 5540
+          },
+          "title": {
+            "type": "string",
+            "example": "期中考"
+          },
+          "testedCount": {
+            "type": "integer",
+            "example": 65
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "僅限 0 人測驗時可刪除",
+            "example": false
+          }
+        }
+      },
+      "ExamDetail": {
+        "type": "object",
+        "properties": {
+          "examId": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "fullScore": {
+            "type": "integer",
+            "example": 100
+          },
+          "passScore": {
+            "type": "integer",
+            "example": 60
+          },
+          "timeLimit": {
+            "type": "integer"
+          },
+          "testLimit": {
+            "type": "integer"
+          },
+          "windowLock": {
+            "type": "string"
+          },
+          "testType": {
+            "type": "integer",
+            "description": "0 一般, 1 答案卡"
+          },
+          "subjectType": {
+            "type": "integer",
+            "description": "0 固定, 1 隨機"
+          },
+          "assignScoreType": {
+            "type": "integer",
+            "description": "1 平均配分, 2 自訂"
+          },
+          "optOrder": {
+            "type": "integer",
+            "description": "0 固定順序, 1 隨機排序"
+          },
+          "displayType": {
+            "type": "integer",
+            "description": "0 全部一頁, 1 一頁一題"
+          },
+          "testRecord": {
+            "type": "integer",
+            "description": "3 不顯示, 0 交卷後, 1 批改後, 2 截止後"
+          },
+          "answerDisplayTime": {
+            "type": "integer",
+            "description": "4 不公布, 0 交卷後, 其餘為截止後"
+          },
+          "showStatistics": {
+            "type": "integer",
+            "description": "1 開放, 2 及格後開放, 3 結束後開放"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ExamCreateRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "startTime",
+          "endTime",
+          "fullScore"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "fullScore": {
+            "type": "integer"
+          },
+          "passScore": {
+            "type": "integer"
+          },
+          "timeLimit": {
+            "type": "integer"
+          },
+          "testLimit": {
+            "type": "integer"
+          },
+          "windowLock": {
+            "type": "string"
+          },
+          "testType": {
+            "type": "integer"
+          },
+          "subjectType": {
+            "type": "integer"
+          },
+          "assignScoreType": {
+            "type": "integer"
+          },
+          "optOrder": {
+            "type": "integer"
+          },
+          "displayType": {
+            "type": "integer"
+          },
+          "testRecord": {
+            "type": "integer"
+          },
+          "answerDisplayTime": {
+            "type": "integer"
+          },
+          "showStatistics": {
+            "type": "integer"
+          }
+        }
+      },
+      "ExamUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "fullScore": {
+            "type": "integer"
+          },
+          "passScore": {
+            "type": "integer"
+          }
+        }
+      },
+      "ExamMembersRecordResponse": {
+        "type": "object",
+        "properties": {
+          "examId": {
+            "type": "integer"
+          },
+          "kexamId": {
+            "type": "integer"
+          },
+          "filter": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExamRecordItem"
+            }
+          }
+        }
+      },
+      "ExamRecordItem": {
+        "type": "object",
+        "properties": {
+          "recordId": {
+            "type": "integer",
+            "example": 34912
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "example": 74
+          },
+          "submittedTime": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "已完成"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "ExamRecordDetail": {
+        "type": "object",
+        "properties": {
+          "recordId": {
+            "type": "integer"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "submittedTime": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExamQuestionDetail"
+            }
+          }
+        }
+      },
+      "ExamQuestionDetail": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "questionIndex": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "essay"
+            ]
+          },
+          "questionText": {
+            "type": "string"
+          },
+          "maxScore": {
+            "type": "number"
+          },
+          "givenScore": {
+            "type": "number"
+          },
+          "studentAnswer": {
+            "type": "string"
+          },
+          "systemModelAnswer": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "isAutoGraded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "QuestionAuditRequest": {
+        "type": "object",
+        "required": [
+          "score"
+        ],
+        "properties": {
+          "score": {
+            "type": "number",
+            "example": 26
+          },
+          "commentHtml": {
+            "type": "string",
+            "example": "<div>答題切中要點，援引大法官釋字第 535 號充分。</div>"
+          }
+        }
+      },
+      "ExamBatchAuditItem": {
+        "type": "object",
+        "required": [
+          "recordId",
+          "questionId",
+          "score"
+        ],
+        "properties": {
+          "recordId": {
+            "type": "integer"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "questionId": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "commentHtml": {
+            "type": "string"
+          }
+        }
+      },
+      "BulletinListItem": {
+        "type": "object",
+        "properties": {
+          "bulletinId": {
+            "type": "integer",
+            "example": 19842
+          },
+          "num": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "isTopMost": {
+            "type": "boolean"
+          },
+          "isDraft": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BulletinCreateRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "period_start"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "期中考作答規範與注意事項"
+          },
+          "content": {
+            "type": "string",
+            "example": "各位同學校園網路作答請注意時間..."
+          },
+          "period_start": {
+            "type": "string",
+            "example": "2026-11-03"
+          },
+          "period_end": {
+            "type": "string",
+            "example": "2026-11-20"
+          },
+          "topMost": {
+            "type": "boolean",
+            "default": false
+          },
+          "draft": {
+            "type": "boolean",
+            "default": false
+          },
+          "attach_checkbox": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "BulletinUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "string"
+          },
+          "period_end": {
+            "type": "string"
+          },
+          "topMost": {
+            "type": "boolean"
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -11,6 +11,15 @@
     const CALENDAR_CONFIG_KEY = "eeclassCalendarConfig";
     const FETCH_CONCURRENCY = 4;
 
+    function isExtensionValid() {
+        try {
+            return Boolean(typeof chrome !== "undefined" && chrome?.runtime && Boolean(chrome.runtime.id));
+        }
+        catch {
+            return false;
+        }
+    }
+
     function cleanText(node) {
         if (!node) {
             return "";
@@ -315,10 +324,19 @@
         });
 
         settingsBtn.addEventListener("click", () => {
-            chrome.runtime.sendMessage({
-                action: "open_split_settings",
-                section: "student-calendar",
-            });
+            if (!isExtensionValid()) {
+                alert("擴充功能已重新載入，請重新整理（F5）網頁後再試。");
+                return;
+            }
+            try {
+                chrome.runtime.sendMessage({
+                    action: "open_split_settings",
+                    section: "student-calendar",
+                });
+            }
+            catch {
+                // Ignore
+            }
         });
 
         toolbar.appendChild(statusPill);
@@ -370,15 +388,24 @@
             }
 
             const resp = await new Promise((resolve) => {
-                chrome.runtime.sendMessage(
-                    {
-                        action: "calendar_sync_events",
-                        events,
-                        forceUpdate,
-                        interactiveAuth,
-                    },
-                    (res) => resolve(res || { ok: false, error: "背景服務未回應" })
-                );
+                if (!isExtensionValid()) {
+                    resolve({ ok: false, error: "擴充功能已重新載入，請重新整理（F5）網頁" });
+                    return;
+                }
+                try {
+                    chrome.runtime.sendMessage(
+                        {
+                            action: "calendar_sync_events",
+                            events,
+                            forceUpdate,
+                            interactiveAuth,
+                        },
+                        (res) => resolve(res || { ok: false, error: "背景服務未回應" })
+                    );
+                }
+                catch {
+                    resolve({ ok: false, error: "擴充功能已重新載入" });
+                }
             });
 
             if (!resp.ok) {
@@ -438,20 +465,28 @@
             });
         });
 
-        chrome.storage.local.get([CALENDAR_CONFIG_KEY], (res) => {
-            const config = res?.[CALENDAR_CONFIG_KEY] || { autoSyncCalendar: true };
-            if (config.autoSyncCalendar !== false) {
-                performSyncOnCurrentPage({
-                    forceUpdate: false,
-                    interactiveAuth: false,
-                    statusPill: ui?.statusPill,
-                    syncBtn: ui?.syncBtn,
+        if (isExtensionValid() && chrome.storage?.local) {
+            try {
+                chrome.storage.local.get([CALENDAR_CONFIG_KEY], (res) => {
+                    if (chrome.runtime?.lastError) return;
+                    const config = res?.[CALENDAR_CONFIG_KEY] || { autoSyncCalendar: true };
+                    if (config.autoSyncCalendar !== false) {
+                        performSyncOnCurrentPage({
+                            forceUpdate: false,
+                            interactiveAuth: false,
+                            statusPill: ui?.statusPill,
+                            syncBtn: ui?.syncBtn,
+                        });
+                    }
+                    else if (ui?.statusPill) {
+                        ui.statusPill.textContent = "自動同步已關閉（可手動點擊同步）";
+                    }
                 });
             }
-            else if (ui?.statusPill) {
-                ui.statusPill.textContent = "自動同步已關閉（可手動點擊同步）";
+            catch {
+                // Ignore
             }
-        });
+        }
 
         // 在作業詳細頁監視 DOM 內容變化，若教師或系統動態更新期限或內容，立即觸發差異同步
         if (/^\/course\/homework\/\d+/.test(location.pathname)) {
@@ -459,6 +494,10 @@
             if (contentRoot) {
                 let debounceTimer;
                 const observer = new MutationObserver(() => {
+                    if (!isExtensionValid()) {
+                        observer.disconnect();
+                        return;
+                    }
                     if (debounceTimer) {
                         clearTimeout(debounceTimer);
                     }

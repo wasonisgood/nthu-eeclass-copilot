@@ -337,6 +337,39 @@
               <button type="submit" class="primary-btn">儲存帳密</button>
             </div>
           </form>
+
+        <!-- 圖書館自動登入（與 eeclass 帳密分開儲存） -->
+        <div class="pane-card">
+          <form id="library-cred-form" autocomplete="off">
+            <div class="card-title-row">
+              <h2 class="card-title">圖書館自動登入</h2>
+              <span class="badge-pill">AES-GCM-256 加密保護</span>
+            </div>
+            <p class="setting-sub">與 eeclass 帳密分開儲存。開啟圖書館首頁會導向登入，並自動填入帳密與驗證碼。</p>
+            <div class="setting-row">
+              <div class="setting-copy">
+                <span class="setting-label">自動填入並送出圖書館登入</span>
+                <span class="setting-sub">關閉後只導向登入頁，不自動填寫</span>
+              </div>
+              <button type="button" id="library-autologin-switch" class="ccxp-switch" role="switch" aria-checked="true"></button>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="library-id">圖書館帳號 / 學號</label>
+                <input type="text" id="library-id" class="ccxp-input" autocomplete="off">
+              </div>
+              <div class="form-field">
+                <label for="library-password">密碼</label>
+                <input type="password" id="library-password" class="ccxp-input" placeholder="加密儲存於本機（留空則保留原密碼）" autocomplete="new-password">
+              </div>
+            </div>
+            <p id="library-status" class="setting-sub"></p>
+            <div class="card-footer">
+              <button type="button" id="library-clear-btn" class="pill-btn">清除圖書館帳密</button>
+              <button type="submit" class="primary-btn">儲存圖書館帳密</button>
+            </div>
+          </form>
+        </div>
         </section>
 
         <!-- 分類 2：一般學生 - 教材下載與同步 -->
@@ -896,17 +929,26 @@
 
           <!-- 即時掃描出的課程表格清單 -->
           <div id="w-courses-container" class="wizard-courses-list" hidden>
-            <div class="courses-group-header">
-              <span class="group-title">助教 / 授課教師課程（具特殊管理權限）</span>
-              <span class="group-count" id="w-teaching-count">0 門課程</span>
+            <div id="w-empty-courses-notice" style="display: none; padding: 24px; text-align: center; color: #6b7280; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 6px; margin: 16px 0;">
+              <p style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px;">尚未在 eeclass 抓取到任何課程</p>
+              <p style="font-size: 13px; margin-bottom: 14px;">請確認剛開啟的 eeclass 分頁是否已成功登入並進入「我的課程」主頁。</p>
+              <button type="button" class="pill-btn" id="w-btn-retry-login" style="margin-right: 8px;">在新分頁開啟 eeclass 登入</button>
+              <button type="button" class="primary-btn" id="w-btn-retry-scan">重新掃描課程清單</button>
             </div>
-            <div id="w-teaching-table" class="courses-table-shell"></div>
 
-            <div class="courses-group-header" style="margin-top: 14px;">
-              <span class="group-title">一般修課學生課程（限瀏覽與個人作業繳交）</span>
-              <span class="group-count" id="w-student-count">0 門課程</span>
+            <div id="w-courses-tables-wrap">
+              <div class="courses-group-header">
+                <span class="group-title">助教 / 授課教師課程（具特殊管理權限）</span>
+                <span class="group-count" id="w-teaching-count">0 門課程</span>
+              </div>
+              <div id="w-teaching-table" class="courses-table-shell"></div>
+
+              <div class="courses-group-header" style="margin-top: 14px;">
+                <span class="group-title">一般修課學生課程（限瀏覽與個人作業繳交）</span>
+                <span class="group-count" id="w-student-count">0 門課程</span>
+              </div>
+              <div id="w-student-table" class="courses-table-shell"></div>
             </div>
-            <div id="w-student-table" class="courses-table-shell"></div>
           </div>
 
           <div class="wizard-footer-row">
@@ -963,6 +1005,8 @@
   </div>
 
   <script src="crypto-vault.js"></script>
+  <script src="eeclass-transport.js"></script>
+  <script src="course-scan.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

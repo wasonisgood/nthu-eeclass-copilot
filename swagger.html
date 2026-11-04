@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>NTHU eeclass Copilot API｜助教工作台 (In-Extension Swagger Server)</title>
+  <link rel="stylesheet" href="vendor/swagger-ui/swagger-ui.css">
+  <link rel="stylesheet" href="swagger.css">
+  <link rel="icon" type="image/png" href="assets/logo-32.png">
+</head>
+<body>
+  <!-- 頂部工作台導航列 (同本系統 Options / Popup 設計) -->
+  <header class="eeclass-topbar">
+    <div class="brand-section">
+      <img src="assets/logo-32.png" alt="eeclass Copilot" class="brand-logo">
+      <span class="brand-title">eeclass Copilot - 助教與教師 API 控制台</span>
+      <span class="brand-badge">OpenAPI 3.0.3</span>
+    </div>
+
+    <div class="action-section">
+      <!-- 當前身分角色切換器 -->
+      <div class="role-pill-selector" title="切換身分權限角色以模擬 RBAC 鑑權">
+        <button type="button" class="role-pill-btn active" data-role="assistant">助教 (TA)</button>
+        <button type="button" class="role-pill-btn" data-role="teacher">教師 (Teacher)</button>
+        <button type="button" class="role-pill-btn" data-role="student">學生 (Student)</button>
+      </div>
+
+      <!-- 操作許可彈窗觸發按鈕 -->
+      <button type="button" id="trigger-consent-btn" class="consent-trigger-btn">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="8" cy="8" r="7"/>
+          <line x1="8" y1="5" x2="8" y2="8.5"/>
+          <circle cx="8" cy="11.5" r="0.5" fill="currentColor"/>
+        </svg>
+        <span>申請操作授權</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Swagger UI 核心容器 -->
+  <div id="swagger-ui"></div>
+
+  <!-- 使用者 UI 許可確認對話框 (User Consent Modal) -->
+  <div id="consent-modal" class="consent-modal-overlay" hidden>
+    <div class="consent-modal">
+      <div class="consent-header">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M8 2.5L14.5 13.5H1.5L8 2.5Z"/>
+            <line x1="8" y1="6.5" x2="8" y2="9.5"/>
+            <circle cx="8" cy="11.5" r="0.5" fill="currentColor"/>
+          </svg>
+          <span>敏感操作許可確認</span>
+        </h3>
+        <button type="button" class="consent-close-btn" id="close-consent-btn">&times;</button>
+      </div>
+      <div class="consent-body">
+        <div class="consent-warning-box">
+          依據 eeclass 平台安全規範，刪除作業僅限 0 人繳交、測驗僅限 0 人作答，全體寄信將發送郵件至全班成員。請確認執行理由以核發授權。
+        </div>
+
+        <div class="consent-field">
+          <label for="consent-action-select">授權動作 (Action)</label>
+          <select id="consent-action-select">
+            <option value="delete_homework">刪除作業 (delete_homework) - 限 0 人繳交</option>
+            <option value="delete_exam">刪除測驗 (delete_exam) - 限 0 人作答</option>
+            <option value="delete_bulletin">刪除公告 (delete_bulletin)</option>
+            <option value="broadcast_email">寄信通知全體修課生 (broadcast_email)</option>
+            <option value="batch_import_scores">批次同步匯入成績與評語 (batch_import_scores)</option>
+          </select>
+        </div>
+
+        <div class="consent-field">
+          <label for="consent-target-id">目標編號 / ID (Target ID)</label>
+          <input type="text" id="consent-target-id" value="70800" placeholder="例如作業 ID 70800 或公告 ID">
+        </div>
+
+        <div class="consent-field">
+          <label for="consent-reason">授權說明 (Reason)</label>
+          <input type="text" id="consent-reason" value="" placeholder="請輸入申請理由">
+        </div>
+
+        <div id="consent-token-result">
+          <strong>已核發授權權杖：</strong><br>
+          <span id="consent-token-text"></span>
+        </div>
+      </div>
+      <div class="consent-actions">
+        <button type="button" class="btn-cancel" id="cancel-consent-btn">取消</button>
+        <button type="button" class="btn-grant-consent" id="confirm-consent-btn">確認授權並套用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 載入本地 Swagger UI Bundle、規格、擴充套件服務與獨立外部驅動程式 (完全相容 MV3 CSP) -->
+  <script src="vendor/swagger-ui/swagger-ui-bundle.js"></script>
+  <script src="vendor/swagger-ui/swagger-ui-standalone-preset.js"></script>
+  <script src="swagger-spec.js"></script>
+  <script src="eeclass-extension-server.js"></script>
+  <script src="swagger.js"></script>
+</body>
+</html>

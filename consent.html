@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eeclass 數位學習助手 - 操作授權許可確認</title>
+    <link rel="stylesheet" href="consent.css">
+</head>
+<body>
+    <div class="consent-container">
+        <!-- 頂部標題列 -->
+        <header class="consent-header">
+            <div class="header-logo-area">
+                <svg class="header-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <div class="header-titles">
+                    <h1 class="header-title">eeclass 數位學習助手</h1>
+                    <span class="header-subtitle">敏感操作與資料授權許可確認</span>
+                </div>
+            </div>
+            <div class="header-security-badge" id="security-badge">
+                <span class="status-dot"></span>
+                <span id="conn-status-text">通訊加密已就緒</span>
+            </div>
+        </header>
+
+        <!-- 引導／狀態通知橫幅 -->
+        <div id="notice-banner" class="notice-banner" hidden>
+            <div class="banner-content">
+                <span id="banner-message">請確認即將執行的動作與填入內容</span>
+            </div>
+        </div>
+
+        <!-- 主要內容區 -->
+        <main class="consent-body" id="consent-body">
+            <!-- 載入中骨架 -->
+            <div id="loading-state" class="state-panel loading-panel">
+                <div class="spinner"></div>
+                <p>正在載入授權請求詳細資訊...</p>
+            </div>
+
+            <!-- 錯誤／無請求狀態 -->
+            <div id="empty-state" class="state-panel error-panel" hidden>
+                <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <h3 id="empty-title">查無待處理的許可請求</h3>
+                <p id="empty-desc">可能請求已處理完成或連結已失效。請返回 Claude Desktop 或校務工作台。</p>
+            </div>
+
+            <!-- 授權確認卡片 (動態填入) -->
+            <div id="request-content" class="request-content" hidden>
+                <!-- 課程與身分卡 -->
+                <section class="card course-card">
+                    <div class="card-header">
+                        <span class="card-label">目標課程與目前身分</span>
+                        <span id="role-badge" class="role-badge">助教身分</span>
+                    </div>
+                    <div class="course-meta">
+                        <div class="course-main-title" id="course-name-display">載入中…</div>
+                        <div class="course-sub-info">
+                            <span class="meta-item">課程代碼：<strong id="course-code-display">—</strong></span>
+                            <span class="meta-item">課程編號：<strong id="course-id-display">—</strong></span>
+                        </div>
+                    </div>
+                    <div id="role-warning-box" class="role-warning-box" hidden>
+                        <span class="warning-text" id="role-warning-text">身分提示</span>
+                    </div>
+                </section>
+
+                <!-- 動作與操作說明卡 -->
+                <section class="card action-card">
+                    <div class="card-header">
+                        <span class="card-label">請求執行之功能</span>
+                        <span id="action-code-badge" class="code-badge">homework:grade</span>
+                    </div>
+                    <div class="action-meta">
+                        <h2 class="action-title" id="action-title-display">批改學生作業成績</h2>
+                        <p class="action-desc" id="action-desc-display">即將寫入學生作業成績、富文字批改評語與更新防偽驗證碼。</p>
+                    </div>
+                </section>
+
+                <!-- 即將填入／讀取之資料明細 (Payload Inspector) -->
+                <section class="card payload-card">
+                    <div class="card-header">
+                        <span class="card-label">詳細填入與取用內容明細</span>
+                        <span class="badge-count" id="payload-count-badge">4 項資料</span>
+                    </div>
+                    <div class="payload-table-wrapper">
+                        <table class="payload-table" id="payload-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 28%;">資料欄位</th>
+                                    <th style="width: 72%;">預計填入／取用之數值或內容</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payload-tbody">
+                                <!-- 動態渲染 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- 許可選擇與權限範圍說明 -->
+                <section class="consent-choice-section">
+                    <div class="choice-tip">
+                        <p><strong>授權選擇說明：</strong></p>
+                        <ul>
+                            <li><strong>僅本次允許（單次許可）：</strong>僅限本次操作執行一次，下次相同動作將再次彈出確認視窗。</li>
+                            <li><strong>記住並永久允許（永久許可）：</strong>日後在【<span id="remember-course-name">本課程</span>】執行相同功能時將自動核准，無需反覆確認。</li>
+                        </ul>
+                    </div>
+
+                    <!-- 按鈕群組 -->
+                    <div class="consent-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-reject">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="3" y1="3" x2="13" y2="13"></line>
+                                <line x1="13" y1="3" x2="3" y2="13"></line>
+                            </svg>
+                            拒絕授權
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btn-allow-once">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="8" cy="8" r="7"></circle>
+                                <polyline points="6 8 8 10 11 6"></polyline>
+                            </svg>
+                            僅本次允許（單次許可）
+                        </button>
+                        <button type="button" class="btn btn-accent" id="btn-allow-permanent">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 8l3 3 5-5"></path>
+                                <path d="M2 13h12"></path>
+                            </svg>
+                            記住並永久允許
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 完成確認回饋狀態 -->
+            <div id="success-state" class="state-panel success-panel" hidden>
+                <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <h3 id="success-title">操作許可已成功核發！</h3>
+                <p id="success-desc">已成功回傳確認權杖至 Claude Desktop 與擴充套件，程序正在接續執行。</p>
+                <div class="success-meta">
+                    <span id="decision-mode-badge" class="mode-badge">單次許可</span>
+                    <span id="token-preview">權杖已加密送達</span>
+                </div>
+                <button type="button" class="btn btn-secondary close-btn" id="btn-close-window">關閉本視窗</button>
+            </div>
+        </main>
+
+        <footer class="consent-footer">
+            <span>國立清華大學數位學習平台全能助手 ｜ 安全鑑權模組 v1.5.0</span>
+        </footer>
+    </div>
+
+    <script src="consent.js"></script>
+</body>
+</html>
