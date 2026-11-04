@@ -29,9 +29,25 @@
     let userPinnedHudOpen = false;
     let autoHideHudTimer = null;
 
-    function pushLiveProgress(patch) {
+    function isExtensionValid() {
         try {
-            chrome.runtime.sendMessage({ action: "update_live_progress", patch });
+            return Boolean(typeof chrome !== "undefined" && chrome?.runtime && Boolean(chrome.runtime.id));
+        }
+        catch {
+            return false;
+        }
+    }
+
+    function pushLiveProgress(patch) {
+        if (!isExtensionValid()) {
+            return;
+        }
+        try {
+            chrome.runtime.sendMessage({ action: "update_live_progress", patch }, () => {
+                if (chrome.runtime?.lastError) {
+                    // Ignore
+                }
+            });
         }
         catch {
             // Ignore
@@ -40,36 +56,64 @@
 
     function getStudentConfig() {
         return new Promise((resolve) => {
-            if (typeof chrome === "undefined" || !chrome.storage?.local) {
+            if (!isExtensionValid() || !chrome.storage?.local) {
                 resolve({ ...DEFAULT_STUDENT_CONFIG });
                 return;
             }
-            chrome.storage.local.get([STUDENT_CONFIG_KEY], (res) => {
-                resolve({ ...DEFAULT_STUDENT_CONFIG, ...(res?.[STUDENT_CONFIG_KEY] ?? {}) });
-            });
+            try {
+                chrome.storage.local.get([STUDENT_CONFIG_KEY], (res) => {
+                    if (chrome.runtime?.lastError) {
+                        resolve({ ...DEFAULT_STUDENT_CONFIG });
+                        return;
+                    }
+                    resolve({ ...DEFAULT_STUDENT_CONFIG, ...(res?.[STUDENT_CONFIG_KEY] ?? {}) });
+                });
+            }
+            catch {
+                resolve({ ...DEFAULT_STUDENT_CONFIG });
+            }
         });
     }
 
     function saveStudentConfig(partial) {
         currentConfig = { ...currentConfig, ...partial };
         return new Promise((resolve) => {
-            if (typeof chrome === "undefined" || !chrome.storage?.local) {
+            if (!isExtensionValid() || !chrome.storage?.local) {
                 resolve();
                 return;
             }
-            chrome.storage.local.set({ [STUDENT_CONFIG_KEY]: currentConfig }, () => resolve());
+            try {
+                chrome.storage.local.set({ [STUDENT_CONFIG_KEY]: currentConfig }, () => {
+                    if (chrome.runtime?.lastError) {
+                        // Ignore
+                    }
+                    resolve();
+                });
+            }
+            catch {
+                resolve();
+            }
         });
     }
 
     function getSyncedUrlsMap() {
         return new Promise((resolve) => {
-            if (typeof chrome === "undefined" || !chrome.storage?.local) {
+            if (!isExtensionValid() || !chrome.storage?.local) {
                 resolve({});
                 return;
             }
-            chrome.storage.local.get([SYNCED_URLS_KEY], (res) => {
-                resolve(res?.[SYNCED_URLS_KEY] ?? {});
-            });
+            try {
+                chrome.storage.local.get([SYNCED_URLS_KEY], (res) => {
+                    if (chrome.runtime?.lastError) {
+                        resolve({});
+                        return;
+                    }
+                    resolve(res?.[SYNCED_URLS_KEY] ?? {});
+                });
+            }
+            catch {
+                resolve({});
+            }
         });
     }
 
@@ -78,12 +122,30 @@
             return Promise.resolve();
         }
         return new Promise((resolve) => {
+            if (!isExtensionValid() || !chrome.storage?.local) {
+                resolve();
+                return;
+            }
             getSyncedUrlsMap().then((map) => {
                 const now = Date.now();
                 for (const url of urls) {
                     map[url] = now;
                 }
-                chrome.storage.local.set({ [SYNCED_URLS_KEY]: map }, () => resolve());
+                if (!isExtensionValid() || !chrome.storage?.local) {
+                    resolve();
+                    return;
+                }
+                try {
+                    chrome.storage.local.set({ [SYNCED_URLS_KEY]: map }, () => {
+                        if (chrome.runtime?.lastError) {
+                            // Ignore
+                        }
+                        resolve();
+                    });
+                }
+                catch {
+                    resolve();
+                }
             });
         });
     }
@@ -210,13 +272,22 @@
 
     function checkExtensionDirStatus() {
         return new Promise((resolve) => {
-            chrome.runtime.sendMessage({ action: "check_extension_dir_status" }, (resp) => {
-                if (chrome.runtime.lastError || !resp) {
-                    resolve({ hasHandle: false, writable: false });
-                    return;
-                }
-                resolve(resp);
-            });
+            if (!isExtensionValid()) {
+                resolve({ hasHandle: false, writable: false });
+                return;
+            }
+            try {
+                chrome.runtime.sendMessage({ action: "check_extension_dir_status" }, (resp) => {
+                    if (chrome.runtime?.lastError || !resp) {
+                        resolve({ hasHandle: false, writable: false });
+                        return;
+                    }
+                    resolve(resp);
+                });
+            }
+            catch {
+                resolve({ hasHandle: false, writable: false });
+            }
         });
     }
 
@@ -231,8 +302,33 @@
         return s.replace(/[. ]+$/, "") || "untitled";
     }
 
+    function cleanTextStr(str) {
+        return String(str || "").replace(/\s+/g, " ").trim();
+    }
+
+    function isGenericFileTitle(name) {
+        const cleaned = cleanTextStr(name);
+        if (!cleaned) {
+            return true;
+        }
+        return /^(下載|檔案下載|下載檔案|下載附件|附件下載|附件|課程附件|點擊下載|檢視|線上檢視|預覽|觀看|download|downloaded_file|file|attachment|untitled)$/i.test(cleaned);
+    }
+
     function getCourseName() {
-        const titleElem = document.querySelector(".fs-banner-title .text, .fs-banner-title");
+        const bannerWrap = document.querySelector(".fs-banner-wrap, .fs-banner-title");
+        if (bannerWrap) {
+            const titleElem = bannerWrap.querySelector(".fs-banner-title .text, .fs-banner-title a, .fs-banner-title");
+            const extElem = bannerWrap.querySelector(".fs-banner-extInfo");
+            const mainTitle = cleanText(titleElem) || titleElem?.innerText?.trim() || "";
+            const extInfo = extElem ? cleanText(extElem) || extElem.innerText?.trim() : "";
+            if (mainTitle && extInfo) {
+                return sanitizePath(`${mainTitle} ${extInfo}`);
+            }
+            if (mainTitle) {
+                return sanitizePath(mainTitle);
+            }
+        }
+        const titleElem = document.querySelector(".fs-banner-title");
         if (titleElem) {
             return sanitizePath(titleElem.innerText);
         }
@@ -240,39 +336,135 @@
     }
 
     function cleanText(elem) {
+        if (!elem) {
+            return "";
+        }
         const cloned = elem.cloneNode(true);
-        cloned.querySelectorAll(".font-icon, .fs-hint, .eeclass-inline-dl-btn").forEach((e) => e.remove());
+        cloned.querySelectorAll(
+            ".font-icon, .fs-hint, .eeclass-inline-dl-btn, .mobile_ext-btn, .mobile-ext, [data-toggle='collapse'], .caret"
+        ).forEach((e) => e.remove());
         return cloned.textContent.replace(/\s+/g, " ").trim();
     }
 
     function getSectionTitle(groupNode) {
         if (!groupNode) {
-            return "未分類單元";
+            return "課程教材";
         }
         const titleElem = groupNode.querySelector(":scope > .header .node-title");
-        return titleElem ? sanitizePath(cleanText(titleElem)) : "未分類單元";
+        return titleElem ? sanitizePath(cleanText(titleElem)) : "課程教材";
     }
 
     function resolveSectionForLink(a) {
+        if (!a) {
+            return "課程教材";
+        }
+
+        // 1. 優先檢查標準 xtree 節點（單元/周次 group 或其父層）
         const group = a.closest(".xtree-node.type-group") ||
             a.closest(".xtree-node")?.parentElement?.closest(".xtree-node.type-group");
         if (group) {
             return getSectionTitle(group);
         }
+
+        // 2. 檢查最近的單元容器（排除 tr 以免誤取自身資料行標題）
+        const containingWeek = a.closest(".unit-box, .chapter-box, .fs-block, .panel, .module-box, .timeline-item, li:not(.xtree-node)");
+        if (containingWeek) {
+            const heading = containingWeek.querySelector(".node-title, .title, .panel-title, .fs-block-header .block-title, h2, h3, h4, h5, .header, dt");
+            if (heading) {
+                const text = cleanText(heading);
+                if (text && text.length <= 80 && !/^(上課教材|教材列表|課程活動)$/i.test(text)) {
+                    return sanitizePath(text);
+                }
+            }
+        }
+
+        // 3. 表格所在區塊（如上課教材列表頁面）
+        const tableBlock = a.closest(".fs-block, .panel, #xbox-inline");
+        if (tableBlock) {
+            const blockTitle = tableBlock.querySelector(".fs-block-header .block-title, .panel-title, h3, h2");
+            if (blockTitle) {
+                const text = cleanText(blockTitle);
+                if (text && text.length <= 80 && !/^(上課教材|教材列表|課程活動)$/i.test(text)) {
+                    return sanitizePath(text);
+                }
+            }
+        }
+
+        // 4. 檢查前置同層標題（例如 h3, h4, .node-title 等）
+        let prev = a.parentElement;
+        while (prev && prev !== document.body) {
+            const prevHeading = prev.querySelector("h2, h3, h4, .node-title, .fs-sub-title");
+            if (prevHeading) {
+                const text = cleanText(prevHeading);
+                if (text && text.length <= 80 && !/^(上課教材|教材列表|課程活動)$/i.test(text)) {
+                    return sanitizePath(text);
+                }
+            }
+            if (prev.previousElementSibling) {
+                const sibHeading = prev.previousElementSibling.matches("h2, h3, h4, .node-title")
+                    ? prev.previousElementSibling
+                    : prev.previousElementSibling.querySelector("h2, h3, h4, .node-title");
+                if (sibHeading) {
+                    const text = cleanText(sibHeading);
+                    if (text && text.length <= 80 && !/^(上課教材|教材列表|課程活動)$/i.test(text)) {
+                        return sanitizePath(text);
+                    }
+                }
+            }
+            prev = prev.parentElement;
+        }
+
+        // 5. 檢查麵包屑或頁面頂部標題
         const mediaHeader = document.querySelector("#xbox-inline .fs-panel-header h3, .fs-page-header h2, .breadcrumb li.active");
         if (mediaHeader) {
-            return sanitizePath(cleanText(mediaHeader));
+            const text = cleanText(mediaHeader);
+            if (text && !/^(我的首頁|課程活動|上課教材)$/i.test(text)) {
+                return sanitizePath(text);
+            }
         }
-        return "課程附件";
+        return "課程教材";
     }
 
     function isFileDownloadLink(a) {
-        return /\/(filedownload|download)\/\d+/.test(a.getAttribute("href") || "");
+        if (!a) {
+            return false;
+        }
+        const href = a.getAttribute("href") || "";
+        if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+            return false;
+        }
+        if (/\/(filedownload|download)\//i.test(href)) {
+            return true;
+        }
+        if (/\/media\/(?:[a-zA-Z0-9_]+\/)?download\//i.test(href)) {
+            return true;
+        }
+        if (/\/sysdata\/(?:doc|attach|material|media|file)\//i.test(href)) {
+            return true;
+        }
+        if (/\.(pdf|docx?|pptx?|xlsx?|odt|csv|zip|rar|7z|tar\.gz|mp4|mp3|m4a)(\?|$)/i.test(href)) {
+            return true;
+        }
+        if (a.hasAttribute("download")) {
+            return true;
+        }
+        return false;
     }
 
     function isMediaPageLink(a) {
+        if (!a) {
+            return false;
+        }
+        const href = a.getAttribute("href") || "";
+        if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+            return false;
+        }
         try {
-            return /^\/media\/[^/]+\/\d+/.test(new URL(a.href, location.origin).pathname);
+            const pathname = new URL(a.href, location.origin).pathname;
+            if (/\/(download|filedownload)\//i.test(pathname)) {
+                return false;
+            }
+            return /^\/media\/(?:doc|file|video|audio|content|[a-zA-Z0-9_]+)\/\d+/i.test(pathname);
         }
         catch {
             return false;
@@ -282,6 +474,7 @@
     function collectFromCoursePage() {
         const direct = [];
         const pages = [];
+        const seenUrls = new Set();
         const tree = document.querySelector("#content_xtree");
 
         if (tree) {
@@ -297,19 +490,41 @@
 
                 if (node.classList.contains("type-group")) {
                     header.querySelectorAll(".description a[href]").forEach((a) => {
+                        const href = a.getAttribute("href") || "";
+                        if (href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+                            return;
+                        }
                         if (isFileDownloadLink(a)) {
-                            direct.push({ a, section });
+                            const absUrl = new URL(href, location.href).href;
+                            if (!seenUrls.has(absUrl)) {
+                                seenUrls.add(absUrl);
+                                direct.push({ a, section });
+                            }
                         }
                     });
                     return;
                 }
 
                 header.querySelectorAll(".node-title a[href]").forEach((a) => {
+                    const href = a.getAttribute("href") || "";
+                    if (href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+                        return;
+                    }
+                    const absUrl = new URL(href, location.href).href;
+                    if (seenUrls.has(absUrl)) {
+                        return;
+                    }
+
                     if (isFileDownloadLink(a)) {
+                        seenUrls.add(absUrl);
                         direct.push({ a, section });
                     }
                     else if (isMediaPageLink(a)) {
-                        pages.push({ url: a.href, title: cleanText(a), section });
+                        const title = cleanText(a);
+                        if (title) {
+                            seenUrls.add(absUrl);
+                            pages.push({ url: absUrl, title, section });
+                        }
                     }
                 });
             });
@@ -317,11 +532,26 @@
         else {
             const root = document.querySelector("#fs-content") || document.body;
             root.querySelectorAll("a[href]").forEach((a) => {
+                const href = a.getAttribute("href") || "";
+                if (href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+                    return;
+                }
+                const absUrl = new URL(href, location.href).href;
+                if (seenUrls.has(absUrl)) {
+                    return;
+                }
+
+                const section = resolveSectionForLink(a);
                 if (isFileDownloadLink(a)) {
-                    direct.push({ a, section: resolveSectionForLink(a) });
+                    seenUrls.add(absUrl);
+                    direct.push({ a, section });
                 }
                 else if (isMediaPageLink(a)) {
-                    pages.push({ url: a.href, title: cleanText(a), section: "未分類單元" });
+                    const title = cleanText(a);
+                    if (title) {
+                        seenUrls.add(absUrl);
+                        pages.push({ url: absUrl, title, section });
+                    }
                 }
             });
         }
@@ -330,22 +560,153 @@
     }
 
     async function fetchAttachments(page) {
-        const resp = await fetch(page.url, { credentials: "include" });
-        if (!resp.ok) {
-            throw new Error(`HTTP ${resp.status}`);
+        const pageUrl = page.url;
+        let mediaType = "doc";
+        let mediaId = "";
+        try {
+            const mediaIdMatch = /\/media\/([a-zA-Z0-9_]+)\/(\d+)/.exec(new URL(pageUrl, location.origin).pathname);
+            if (mediaIdMatch) {
+                mediaType = mediaIdMatch[1];
+                mediaId = mediaIdMatch[2];
+            }
         }
-        const doc = new DOMParser().parseFromString(await resp.text(), "text/html");
-        const root = doc.querySelector("#xbox-inline") || doc.querySelector("#fs-media-content") || doc.body;
+        catch {
+            // Ignore
+        }
+
+        let html = "";
+        try {
+            const resp = await fetch(pageUrl, { credentials: "include" });
+            if (resp.ok) {
+                html = await resp.text();
+            }
+        }
+        catch (err) {
+            console.warn("無法取得教材頁面 HTML，將嘗試使用標準端點：", pageUrl, err);
+        }
+
         const results = [];
-        root.querySelectorAll("a[href]").forEach((a) => {
-            if (!isFileDownloadLink(a)) {
+        const seenUrls = new Set();
+
+        const addResult = (rawUrl, nameCandidate) => {
+            if (!rawUrl || typeof rawUrl !== "string") {
                 return;
             }
-            results.push({
-                url: new URL(a.getAttribute("href"), page.url).href,
-                name: cleanText(a),
+            const trimmed = rawUrl.trim();
+            if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("javascript:") || trimmed.startsWith("mailto:")) {
+                return;
+            }
+            try {
+                const absUrl = new URL(trimmed, pageUrl).href;
+                if (seenUrls.has(absUrl)) {
+                    return;
+                }
+                seenUrls.add(absUrl);
+
+                let finalName = page.title;
+                const cleanCandidate = cleanTextStr(nameCandidate);
+                if (cleanCandidate && !isGenericFileTitle(cleanCandidate)) {
+                    finalName = cleanCandidate;
+                }
+                results.push({
+                    url: absUrl,
+                    name: finalName || page.title || "downloaded_file",
+                });
+            }
+            catch {
+                // Ignore
+            }
+        };
+
+        if (html) {
+            const doc = new DOMParser().parseFromString(html, "text/html");
+
+            // 1. 檢查 PDF.js iframe 嵌入檢視器 (eeclass 最常用之文件閱讀器)
+            doc.querySelectorAll("iframe[src*='viewer.html'], iframe[src*='pdfjs'], iframe[src*='pdf.js']").forEach((iframe) => {
+                try {
+                    const u = new URL(iframe.getAttribute("src"), pageUrl);
+                    const fileParam = u.searchParams.get("file");
+                    if (fileParam) {
+                        addResult(decodeURIComponent(fileParam), page.title);
+                    }
+                }
+                catch {
+                    // Ignore
+                }
             });
-        });
+
+            // 2. 檢查其他嵌入文件標籤 (iframe, embed, object)
+            doc.querySelectorAll("iframe[src], embed[src], object[data]").forEach((el) => {
+                const src = el.getAttribute("src") || el.getAttribute("data");
+                if (
+                    src &&
+                    (/\.(pdf|docx?|pptx?|xlsx?|odt|csv|zip|mp4)(\?|$)/i.test(src) ||
+                        /\/(sysdata|media|download)\//i.test(src))
+                ) {
+                    addResult(src, page.title);
+                }
+            });
+
+            // 3. 檢查影音標籤 (<video>, <audio>, <source>)
+            doc.querySelectorAll("video[src], audio[src], video source[src], audio source[src]").forEach((el) => {
+                const src = el.getAttribute("src");
+                if (src) {
+                    addResult(src, page.title);
+                }
+            });
+
+            // 4. 檢查頁面中的下載連結與附件按鈕（含 .ext-tools, .fs-tools, #xbox-inline 等）
+            doc.querySelectorAll("a[href]").forEach((a) => {
+                const href = a.getAttribute("href") || "";
+                if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+                    return;
+                }
+
+                const text = cleanText(a);
+                const title = a.getAttribute("title") || "";
+                const isExplicitDownload =
+                    a.hasAttribute("download") ||
+                    a.classList.contains("fs-download") ||
+                    a.classList.contains("btn-download") ||
+                    a.closest(".ext-tools, .fs-tools, .fs-attachment, .attachment, .fs-file-list") !== null ||
+                    /(下載|download)/i.test(text) ||
+                    /(下載|download)/i.test(title) ||
+                    a.querySelector(".fa-download, .fs-font-download, [class*='download']") !== null;
+
+                const isDownloadHref =
+                    /\/(filedownload|download)\//i.test(href) ||
+                    /\/media\/(?:doc\/)?download\//i.test(href) ||
+                    /\/sysdata\/(?:doc|attach|material|media|file)\//i.test(href) ||
+                    /\.(pdf|docx?|pptx?|xlsx?|odt|csv|zip|rar|7z|mp4|mp3)(\?|$)/i.test(href);
+
+                if (isExplicitDownload || isDownloadHref) {
+                    addResult(href, text || page.title);
+                }
+            });
+
+            // 5. 掃描 script 中的檔案變數路徑
+            doc.querySelectorAll("script:not([src])").forEach((s) => {
+                const code = s.textContent || "";
+                const mVar = /(?:fileUrl|pdfUrl|docUrl|downloadUrl|mediaUrl)\s*[:=]\s*['"]([^'"]+)['"]/i.exec(code);
+                if (mVar?.[1]) {
+                    addResult(mVar[1], page.title);
+                }
+                const mSysdata = /['"](\/(?:sysdata|media\/doc\/download)\/[^'"]+\.[a-zA-Z0-9]{2,5})['"]/i.exec(code);
+                if (mSysdata?.[1]) {
+                    addResult(mSysdata[1], page.title);
+                }
+            });
+        }
+
+        // 6. 終極保底：若解析未得出附件，採用 eeclass 標準教材下載端點
+        if (results.length === 0 && mediaId) {
+            const fallbackDownloadUrl = `${location.origin}/media/${mediaType}/download/${mediaId}`;
+            results.push({
+                url: fallbackDownloadUrl,
+                name: page.title,
+            });
+        }
+
         return results;
     }
 
@@ -368,11 +729,11 @@
         const failed = [];
 
         const addTask = (url, name, section) => {
-            if (seen.has(url)) {
+            if (!url || seen.has(url)) {
                 return;
             }
             seen.add(url);
-            const cleanSection = sanitizePath(section || "未分類單元");
+            const cleanSection = sanitizePath(section || "課程教材");
             const cleanName = sanitizePath(name || "downloaded_file");
             tasks.push({
                 url,
@@ -383,14 +744,60 @@
             });
         };
 
-        direct.forEach(({ a, section }) => addTask(a.href, cleanText(a), section));
+        direct.forEach(({ a, section }) => {
+            const nameCandidate = cleanText(a);
+            addTask(a.href, nameCandidate, section);
+        });
+
+        // 若在課程活動主頁，亦嘗試補充檢查上課教材列表（若有獨立上架而未放入活動樹者）
+        const courseIdMatch = /^\/course\/(\d+)$/.exec(location.pathname);
+        if (courseIdMatch?.[1]) {
+            try {
+                const matUrl = `${location.origin}/course/material/${courseIdMatch[1]}`;
+                const resp = await fetch(matUrl, { credentials: "include" });
+                if (resp.ok) {
+                    const matDoc = new DOMParser().parseFromString(await resp.text(), "text/html");
+                    const matContent = matDoc.querySelector("#fs-content") || matDoc.body;
+                    matContent.querySelectorAll("a[href]").forEach((a) => {
+                        const href = a.getAttribute("href") || "";
+                        if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+                            return;
+                        }
+                        const absUrl = new URL(href, matUrl).href;
+                        if (seen.has(absUrl)) {
+                            return;
+                        }
+                        const section = resolveSectionForLink(a);
+                        if (isFileDownloadLink(a)) {
+                            direct.push({ a, section });
+                            addTask(absUrl, cleanText(a), section);
+                        }
+                        else if (isMediaPageLink(a)) {
+                            const title = cleanText(a);
+                            if (title && !pages.some((p) => p.url === absUrl)) {
+                                pages.push({ url: absUrl, title, section });
+                            }
+                        }
+                    });
+                }
+            }
+            catch {
+                // Ignore background material augmentation
+            }
+        }
 
         const uniquePages = [...new Map(pages.map((p) => [p.url, p])).values()];
         let done = 0;
         await runWithConcurrency(uniquePages, FETCH_CONCURRENCY, async (page) => {
             try {
                 const attachments = await fetchAttachments(page);
-                attachments.forEach((f) => addTask(f.url, f.name, page.section));
+                attachments.forEach((f) => {
+                    let chosenName = page.title;
+                    if (f.name && !isGenericFileTitle(f.name)) {
+                        chosenName = f.name;
+                    }
+                    addTask(f.url, chosenName, page.section);
+                });
             }
             catch (err) {
                 console.error("讀取教材頁面失敗：", page.url, err);
@@ -571,17 +978,32 @@
                 if (typeof onStatusUpdate === "function") {
                     onStatusUpdate(`正在寫入「${extStatus.folderName || currentConfig.boundFolderName}」(${tasks.length} 份)...`);
                 }
-                const bgResult = await new Promise((resolve) => {
-                    chrome.runtime.sendMessage(
-                        {
-                            action: "download_files",
-                            tasks,
-                            useLocalFsHandle: true,
-                            targetDirectory: currentConfig.boundFolderName || DEFAULT_SUBFOLDER,
-                            conflictAction: currentConfig.conflictAction || "uniquify",
-                        },
-                        (res) => resolve(res || { succeededUrls: [] })
-                    );
+                const bgResult = await new Promise((resolve, reject) => {
+                    if (!isExtensionValid()) {
+                        reject(new Error("擴充功能已重新載入，請重新整理（F5）網頁後再試。"));
+                        return;
+                    }
+                    try {
+                        chrome.runtime.sendMessage(
+                            {
+                                action: "download_files",
+                                tasks,
+                                useLocalFsHandle: true,
+                                targetDirectory: currentConfig.boundFolderName || DEFAULT_SUBFOLDER,
+                                conflictAction: currentConfig.conflictAction || "uniquify",
+                            },
+                            (res) => {
+                                if (chrome.runtime?.lastError) {
+                                    reject(new Error(chrome.runtime.lastError.message));
+                                    return;
+                                }
+                                resolve(res || { succeededUrls: [] });
+                            }
+                        );
+                    }
+                    catch (err) {
+                        reject(err);
+                    }
                 });
                 await markUrlsAsSynced(bgResult.succeededUrls || []);
                 return {
@@ -613,17 +1035,32 @@
             ? (currentConfig.boundFolderName || DEFAULT_SUBFOLDER)
             : (currentConfig.targetDirectory || DEFAULT_SUBFOLDER);
 
-        const bgResult = await new Promise((resolve) => {
-            chrome.runtime.sendMessage(
-                {
-                    action: "download_files",
-                    tasks,
-                    useLocalFsHandle: Boolean(currentConfig.useLocalFsHandle),
-                    targetDirectory,
-                    conflictAction: currentConfig.conflictAction || "uniquify",
-                },
-                (res) => resolve(res || { succeededUrls: [] })
-            );
+        const bgResult = await new Promise((resolve, reject) => {
+            if (!isExtensionValid()) {
+                reject(new Error("擴充功能已重新載入，請重新整理（F5）網頁後再試。"));
+                return;
+            }
+            try {
+                chrome.runtime.sendMessage(
+                    {
+                        action: "download_files",
+                        tasks,
+                        useLocalFsHandle: Boolean(currentConfig.useLocalFsHandle),
+                        targetDirectory,
+                        conflictAction: currentConfig.conflictAction || "uniquify",
+                    },
+                    (res) => {
+                        if (chrome.runtime?.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                            return;
+                        }
+                        resolve(res || { succeededUrls: [] });
+                    }
+                );
+            }
+            catch (err) {
+                reject(err);
+            }
         });
         await markUrlsAsSynced(bgResult.succeededUrls || []);
         return {
@@ -635,9 +1072,26 @@
     async function downloadSingleAttachmentLink(a, options = {}) {
         const courseName = getCourseName();
         const section = sanitizePath(resolveSectionForLink(a));
-        const fileName = sanitizePath(cleanText(a) || "downloaded_file");
+        let fileName = sanitizePath(cleanText(a) || "downloaded_file");
+        let downloadUrl = a.href;
+
+        if (isMediaPageLink(a)) {
+            try {
+                const attachments = await fetchAttachments({ url: a.href, title: fileName, section });
+                if (attachments.length > 0) {
+                    downloadUrl = attachments[0].url;
+                    if (attachments[0].name && !isGenericFileTitle(attachments[0].name)) {
+                        fileName = sanitizePath(attachments[0].name);
+                    }
+                }
+            }
+            catch (err) {
+                console.warn("解析教材單一附件下載點失敗，嘗試直連：", err);
+            }
+        }
+
         const task = {
-            url: a.href,
+            url: downloadUrl,
             courseName,
             section,
             fileName,
@@ -652,10 +1106,53 @@
     function decorateIndividualDownloadLinks(root = document) {
         const links = root.querySelectorAll("a[href]");
         links.forEach((a) => {
-            if (!isFileDownloadLink(a) || a.dataset.eeclassSingleBound === "true") {
+            const href = a.getAttribute("href") || "";
+            if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+                return;
+            }
+            const isTarget =
+                isFileDownloadLink(a) ||
+                (isMediaPageLink(a) && (a.closest(".xtree-node:not(.type-group)") || a.closest(".fs-table, table, .fs-list, #fs-content")));
+            if (!isTarget || a.dataset.eeclassSingleBound === "true") {
                 return;
             }
             a.dataset.eeclassSingleBound = "true";
+
+            // 滑鼠移入或聚焦時預先向 background 登記該下載連結的課程與周次 context
+            const registerContext = (bypass = false) => {
+                if (!isExtensionValid()) {
+                    return;
+                }
+                try {
+                    const courseName = getCourseName();
+                    const section = sanitizePath(resolveSectionForLink(a));
+                    const fileName = sanitizePath(cleanText(a) || "");
+                    chrome.runtime?.sendMessage?.({
+                        action: "register_download_context",
+                        context: {
+                            url: a.href,
+                            courseName,
+                            section,
+                            fileName,
+                            bypassArchive: bypass,
+                        },
+                    }, () => {
+                        if (chrome.runtime?.lastError) {
+                            // Ignore
+                        }
+                    });
+                }
+                catch {
+                    // Ignore
+                }
+            };
+
+            a.addEventListener("mouseenter", () => registerContext(false));
+            a.addEventListener("focus", () => registerContext(false));
+            a.addEventListener("mousedown", (e) => {
+                const bypass = Boolean(e.altKey);
+                registerContext(bypass);
+            });
 
             a.addEventListener("click", (event) => {
                 if (!currentConfig.interceptSingleDownload || event.altKey || event.ctrlKey || event.metaKey) {
@@ -731,6 +1228,9 @@
     }
 
     async function runAutoSyncIfNeeded(statusBadge) {
+        if (!isExtensionValid()) {
+            return;
+        }
         if (!currentConfig.autoSyncCourseFiles) {
             return;
         }
@@ -746,6 +1246,9 @@
                 parseCourseFiles(),
                 getSyncedUrlsMap(),
             ]);
+            if (!isExtensionValid()) {
+                return;
+            }
             const unsyncedTasks = tasks.filter((t) => !syncedMap[t.url]);
             if (unsyncedTasks.length === 0) {
                 if (statusBadge) {
@@ -775,6 +1278,9 @@
             }
         }
         catch (err) {
+            if (err?.message?.includes("Extension context invalidated") || !isExtensionValid()) {
+                return;
+            }
             console.error("自動同步教材失敗：", err);
             if (statusBadge) {
                 statusBadge.textContent = "自動同步失敗";
@@ -953,40 +1459,70 @@
         progressBtn.addEventListener("click", () => {
             userPinnedHudOpen = hud.hidden;
             hud.hidden = !hud.hidden;
-            if (!hud.hidden) {
-                chrome.storage.local.get([LIVE_PROGRESS_KEY], (res) => {
-                    if (res?.[LIVE_PROGRESS_KEY]) {
-                        renderHudWithProgress(res[LIVE_PROGRESS_KEY]);
-                    }
-                });
+            if (!hud.hidden && isExtensionValid() && chrome.storage?.local) {
+                try {
+                    chrome.storage.local.get([LIVE_PROGRESS_KEY], (res) => {
+                        if (chrome.runtime?.lastError) return;
+                        if (res?.[LIVE_PROGRESS_KEY]) {
+                            renderHudWithProgress(res[LIVE_PROGRESS_KEY]);
+                        }
+                    });
+                }
+                catch {
+                    // Ignore
+                }
             }
         });
 
         splitSettingsBtn.addEventListener("click", () => {
-            chrome.runtime.sendMessage({ action: "open_split_settings" });
+            if (!isExtensionValid()) {
+                alert("擴充功能已更新，請重新整理（F5）網頁後再試。");
+                return;
+            }
+            try {
+                chrome.runtime.sendMessage({ action: "open_split_settings" });
+            }
+            catch {
+                alert("擴充功能已更新，請重新整理（F5）網頁後再試。");
+            }
         });
 
         mainBtn.addEventListener("click", async () => {
+            if (!isExtensionValid()) {
+                alert("擴充功能已更新，請重新整理（F5）網頁後再試。");
+                return;
+            }
             if (!isCourseOrMediaPage) {
                 // 在 /dashboard 或非課程頁點擊時，直接執行背景最近事件與作業詳情同步至 Google 日曆
                 mainBtn.disabled = true;
                 mainBtn.textContent = "同步日曆中...";
                 userPinnedHudOpen = true;
                 hud.hidden = false;
-                chrome.runtime.sendMessage(
-                    {
-                        action: "calendar_sync_now_from_background",
-                        forceUpdate: true,
-                        interactiveAuth: true,
-                    },
-                    (res) => {
-                        mainBtn.disabled = false;
-                        mainBtn.textContent = res?.ok ? "✓ 日曆已同步" : "請先授權日曆";
-                        setTimeout(() => {
-                            mainBtn.textContent = defaultLabel;
-                        }, 3000);
-                    }
-                );
+                try {
+                    chrome.runtime.sendMessage(
+                        {
+                            action: "calendar_sync_now_from_background",
+                            forceUpdate: true,
+                            interactiveAuth: true,
+                        },
+                        (res) => {
+                            if (chrome.runtime?.lastError) {
+                                mainBtn.disabled = false;
+                                mainBtn.textContent = "請先授權日曆";
+                                return;
+                            }
+                            mainBtn.disabled = false;
+                            mainBtn.textContent = res?.ok ? "✓ 日曆已同步" : "請先授權日曆";
+                            setTimeout(() => {
+                                mainBtn.textContent = defaultLabel;
+                            }, 3000);
+                        }
+                    );
+                }
+                catch {
+                    mainBtn.disabled = false;
+                    mainBtn.textContent = defaultLabel;
+                }
                 return;
             }
 
@@ -1088,21 +1624,36 @@
         container.appendChild(bar);
         document.body.appendChild(container);
 
-        chrome.storage.local.get([LIVE_PROGRESS_KEY], (res) => {
-            if (res?.[LIVE_PROGRESS_KEY]) {
-                renderHudWithProgress(res[LIVE_PROGRESS_KEY]);
+        if (isExtensionValid() && chrome.storage?.local) {
+            try {
+                chrome.storage.local.get([LIVE_PROGRESS_KEY], (res) => {
+                    if (chrome.runtime?.lastError) return;
+                    if (res?.[LIVE_PROGRESS_KEY]) {
+                        renderHudWithProgress(res[LIVE_PROGRESS_KEY]);
+                    }
+                });
             }
-        });
+            catch {
+                // Ignore
+            }
+        }
 
         runAutoSyncIfNeeded(statusBadge);
     }
 
     async function bootstrap() {
+        if (!isExtensionValid()) {
+            return;
+        }
         currentConfig = await getStudentConfig();
         decorateIndividualDownloadLinks(document);
         injectDownloaderWidget();
 
         const observer = new MutationObserver(() => {
+            if (!isExtensionValid()) {
+                observer.disconnect();
+                return;
+            }
             decorateIndividualDownloadLinks(document);
         });
         if (document.body) {
@@ -1110,21 +1661,29 @@
         }
 
         if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-            chrome.storage.onChanged.addListener((changes, areaName) => {
-                if (areaName === "local") {
-                    if (changes[STUDENT_CONFIG_KEY]) {
-                        currentConfig = {
-                            ...DEFAULT_STUDENT_CONFIG,
-                            ...(changes[STUDENT_CONFIG_KEY].newValue ?? {}),
-                        };
-                        updateInlineButtonsVisibility();
-                        injectDownloaderWidget();
+            try {
+                chrome.storage.onChanged.addListener((changes, areaName) => {
+                    if (!isExtensionValid()) {
+                        return;
                     }
-                    if (changes[LIVE_PROGRESS_KEY]?.newValue) {
-                        renderHudWithProgress(changes[LIVE_PROGRESS_KEY].newValue);
+                    if (areaName === "local") {
+                        if (changes[STUDENT_CONFIG_KEY]) {
+                            currentConfig = {
+                                ...DEFAULT_STUDENT_CONFIG,
+                                ...(changes[STUDENT_CONFIG_KEY].newValue ?? {}),
+                            };
+                            updateInlineButtonsVisibility();
+                            injectDownloaderWidget();
+                        }
+                        if (changes[LIVE_PROGRESS_KEY]?.newValue) {
+                            renderHudWithProgress(changes[LIVE_PROGRESS_KEY].newValue);
+                        }
                     }
-                }
-            });
+                });
+            }
+            catch {
+                // Ignore
+            }
         }
     }
 

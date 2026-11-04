@@ -1,6 +1,6 @@
 "use strict";
 
-importScripts("crypto-vault.js", "calendar-sync.js");
+importScripts("crypto-vault.js", "calendar-sync.js", "eeclass-extension-server.js", "eeclass-transport.js", "course-scan.js", "eeclass-live.js", "eeclass-ui.js", "mcp-bridge-client.js");
 
 const { EECLASS_CRYPTO_VAULT, EECLASS_CALENDAR_SYNC } = globalThis;
 
@@ -10,6 +10,49 @@ const IDB_HANDLE_KEY = "boundLocalDirectory";
 const DEFAULT_SUBFOLDER = "eeclass_教材";
 const MAX_SEGMENT_LENGTH = 100;
 const LIVE_PROGRESS_KEY = "eeclassLiveProgress";
+const STUDENT_CONFIG_KEY = "eeclassStudentConfig";
+
+// 供 chrome.downloads.onDeterminingFilename 同步查詢之快取與佇列
+const pendingDownloadsById = new Map();
+const pendingDownloadsByUrl = new Map();
+const recentClickContextByUrl = new Map();
+let activeSequentialTaskMeta = null;
+let lastClickedContext = null;
+let latestEeclassPageContext = null;
+let cachedStudentConfig = {
+    enableDownloaderUI: true,
+    targetDirectory: DEFAULT_SUBFOLDER,
+    useLocalFsHandle: false,
+    boundFolderName: "",
+    interceptSingleDownload: true,
+    conflictAction: "uniquify",
+};
+
+function refreshCachedStudentConfig() {
+    if (!chrome.storage?.local) {
+        return;
+    }
+    chrome.storage.local.get([STUDENT_CONFIG_KEY], (res) => {
+        if (res?.[STUDENT_CONFIG_KEY]) {
+            cachedStudentConfig = {
+                ...cachedStudentConfig,
+                ...res[STUDENT_CONFIG_KEY],
+            };
+        }
+    });
+}
+refreshCachedStudentConfig();
+
+if (chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && changes[STUDENT_CONFIG_KEY]?.newValue) {
+            cachedStudentConfig = {
+                ...cachedStudentConfig,
+                ...changes[STUDENT_CONFIG_KEY].newValue,
+            };
+        }
+    });
+}
 
 async function updateLiveProgress(patch) {
     try {
@@ -107,15 +150,32 @@ function isTrustedOauthSender(sender) {
     }
 }
 
+// 圖書館自動登入只允許圖書館網站與校務 IDM 登入頁的頂層框架取得帳密
+function isTrustedLibrarySender(sender) {
+    if (!sender || sender.id !== chrome.runtime.id || sender.frameId !== 0) {
+        return false;
+    }
+    try {
+        const parsed = new URL(sender.url || sender.tab?.url || "");
+        const host = parsed.hostname.toLowerCase();
+        return parsed.protocol === "https:" &&
+            (host === "www.lib.nthu.edu.tw" || host === "idm.nthu.ust.edu.tw");
+    }
+    catch {
+        return false;
+    }
+}
+
 function sanitizeSegment(name) {
     let s = String(name || "")
+        .replace(/[\x00-\x1f\x7f-\x9f\u200b-\u200f\ufeff]/g, "")
         .replace(/[\\/:*?"<>|~]/g, "_")
         .replace(/\s+/g, " ")
         .trim();
     if (s.length > MAX_SEGMENT_LENGTH) {
         s = s.slice(0, MAX_SEGMENT_LENGTH).trim();
     }
-    return s.replace(/[. ]+$/, "") || "untitled";
+    return s.replace(/^[. ]+|[. ]+$/g, "") || "untitled";
 }
 
 function sanitizeRelativeDirectory(dirPath) {
@@ -131,8 +191,8 @@ function sanitizeRelativeDirectory(dirPath) {
 }
 
 /**
- * 組合 chrome.downloads.download 使用的相對路徑。
- * Chrome 會自動在系統預設「下載 (Downloads)」資料夾下建立不存在的資料夾（如 eeclass_教材/課程名/單元名/檔案）。
+ * 組合 chrome.downloads.download 與 onDeterminingFilename 使用的相對路徑。
+ * Chrome 會自動在系統預設「下載 (Downloads)」資料夾下建立不存在的資料夾（如 eeclass_教材/課程名/周次單元名/檔案）。
  */
 function buildFinalDownloadPath(rawPath, targetDirectory) {
     const cleanTargetDir = sanitizeRelativeDirectory(targetDirectory || DEFAULT_SUBFOLDER);
@@ -143,6 +203,188 @@ function buildFinalDownloadPath(rawPath, targetDirectory) {
         .join("/");
 
     return cleanTargetDir ? `${cleanTargetDir}/${cleanRawPath}` : cleanRawPath;
+}
+
+function normalizeUrlKey(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== "string") {
+        return "";
+    }
+    try {
+        const u = new URL(rawUrl, "https://eeclass.nthu.edu.tw");
+        u.hash = "";
+        return u.href;
+    }
+    catch {
+        return String(rawUrl).trim();
+    }
+}
+
+function isGenericFileTitle(name) {
+    const cleaned = String(name || "").trim();
+    if (!cleaned) {
+        return true;
+    }
+    return /^(下載|檔案下載|下載檔案|下載附件|附件下載|附件|課程附件|點擊下載|download|downloaded_file|file|attachment|untitled)$/i.test(cleaned);
+}
+
+function resolveFinalFileName(preferredName, serverName) {
+    const cleanServer = serverName
+        ? sanitizeSegment(String(serverName).split(/[\\/]+/).pop() || "")
+        : "";
+    const cleanPreferred = preferredName
+        ? sanitizeSegment(String(preferredName).split(/[\\/]+/).pop() || "")
+        : "";
+
+    if (!cleanPreferred || isGenericFileTitle(cleanPreferred)) {
+        return cleanServer || "downloaded_file";
+    }
+    if (!cleanServer || isGenericFileTitle(cleanServer)) {
+        return cleanPreferred;
+    }
+    return sanitizeSegment(ensureExtension(cleanPreferred, cleanServer));
+}
+
+function enqueuePendingDownload(meta) {
+    const key = normalizeUrlKey(meta.url);
+    if (!key) {
+        return;
+    }
+    const list = pendingDownloadsByUrl.get(key) || [];
+    list.push(meta);
+    pendingDownloadsByUrl.set(key, list);
+}
+
+function claimPendingDownloadByUrl(rawUrl) {
+    const key = normalizeUrlKey(rawUrl);
+    if (!key) {
+        return null;
+    }
+    const list = pendingDownloadsByUrl.get(key);
+    if (!Array.isArray(list) || list.length === 0) {
+        return null;
+    }
+    while (list.length > 0) {
+        const item = list.shift();
+        if (list.length === 0) {
+            pendingDownloadsByUrl.delete(key);
+        }
+        if (item && !item.claimed) {
+            item.claimed = true;
+            return item;
+        }
+    }
+    return null;
+}
+
+function isEeclassUrl(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== "string") {
+        return false;
+    }
+    try {
+        const u = new URL(rawUrl);
+        return u.hostname.toLowerCase().endsWith("eeclass.nthu.edu.tw");
+    }
+    catch {
+        return false;
+    }
+}
+
+/**
+ * 關鍵修復：註冊 chrome.downloads.onDeterminingFilename
+ * 1. 當瀏覽器安裝其他具備 onDeterminingFilename 的擴充功能或伺服器回傳 Content-Disposition 時，
+ *    單純傳給 chrome.downloads.download 的 filename 參數會被 Chrome 忽略，導致直接落入預設下載根目錄。
+ * 2. 透過在 onDeterminingFilename 同步呼叫 suggest({ filename })，可強制保留「eeclass_教材/課程名稱/周次單元/檔名.副檔名」子資料夾結構，
+ *    同時自動取得伺服器 Content-Disposition 提供的真實副檔名。
+ * 3. 若使用者直接在 eeclass 頁面上點擊檔案下載連結，亦能自動歸檔至對應課程與周次資料夾。
+ */
+if (chrome.downloads?.onDeterminingFilename) {
+    chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+        try {
+            let meta = pendingDownloadsById.get(downloadItem.id) || null;
+            if (meta) {
+                meta.claimed = true;
+                pendingDownloadsById.delete(downloadItem.id);
+            }
+
+            if (!meta) {
+                meta =
+                    claimPendingDownloadByUrl(downloadItem.originalUrl) ||
+                    claimPendingDownloadByUrl(downloadItem.url) ||
+                    claimPendingDownloadByUrl(downloadItem.finalUrl);
+            }
+
+            if (!meta && downloadItem.byExtensionId === chrome.runtime.id && activeSequentialTaskMeta) {
+                meta = activeSequentialTaskMeta;
+            }
+
+            // 若為使用者在 eeclass 頁面直接觸發的瀏覽器原生下載（例如點擊連結或 iframe 觸發下載）
+            if (
+                !meta &&
+                (isEeclassUrl(downloadItem.url) ||
+                    isEeclassUrl(downloadItem.originalUrl) ||
+                    isEeclassUrl(downloadItem.finalUrl) ||
+                    isEeclassUrl(downloadItem.referrer))
+            ) {
+                const now = Date.now();
+                const urlCandidates = [
+                    normalizeUrlKey(downloadItem.originalUrl),
+                    normalizeUrlKey(downloadItem.url),
+                    normalizeUrlKey(downloadItem.finalUrl),
+                ].filter(Boolean);
+
+                for (const uKey of urlCandidates) {
+                    const clickMeta = recentClickContextByUrl.get(uKey);
+                    if (clickMeta && now - clickMeta.time < 60_000) {
+                        if (clickMeta.bypassArchive) {
+                            suggest();
+                            return;
+                        }
+                        meta = clickMeta;
+                        break;
+                    }
+                }
+
+                if (!meta && lastClickedContext && now - lastClickedContext.time < 20_000) {
+                    if (lastClickedContext.bypassArchive) {
+                        suggest();
+                        return;
+                    }
+                    meta = lastClickedContext;
+                }
+
+                if (!meta && cachedStudentConfig.interceptSingleDownload !== false && latestEeclassPageContext) {
+                    meta = latestEeclassPageContext;
+                }
+            }
+
+            if (!meta) {
+                suggest();
+                return;
+            }
+
+            const rawTarget = meta.targetDirectory || cachedStudentConfig.targetDirectory || DEFAULT_SUBFOLDER;
+            const targetDir = sanitizeRelativeDirectory(
+                /^(downloads|下載)$/i.test(String(rawTarget).trim()) ? DEFAULT_SUBFOLDER : rawTarget
+            );
+            const courseName = sanitizeSegment(meta.courseName || "eeclass_Course");
+            const section = sanitizeSegment(meta.section || "未分類單元");
+            const finalFileName = resolveFinalFileName(meta.fileName, downloadItem.filename);
+            const finalPath = buildFinalDownloadPath(`${courseName}/${section}/${finalFileName}`, targetDir);
+            const conflictAction =
+                meta.conflictAction === "overwrite" || meta.conflictAction === "prompt"
+                    ? meta.conflictAction
+                    : "uniquify";
+
+            suggest({
+                filename: finalPath,
+                conflictAction,
+            });
+        }
+        catch (err) {
+            console.error("onDeterminingFilename 處理失敗：", err);
+            suggest();
+        }
+    });
 }
 
 function openHandleDB() {
@@ -289,14 +531,21 @@ async function resolveUniqueFileName(dirHandle, desiredName, conflictAction) {
 }
 
 async function writeTaskToHandle(dirHandle, task, conflictAction = "uniquify") {
-    const segments = String(task.path || "eeclass_Course/未分類單元/downloaded_file")
+    const courseSeg = sanitizeSegment(task.courseName || "eeclass_Course");
+    const sectionSeg = sanitizeSegment(task.section || "未分類單元");
+    const pathSegments = String(task.path || `${courseSeg}/${sectionSeg}/${task.fileName || "downloaded_file"}`)
         .split(/[\\/]+/)
         .map((s) => sanitizeSegment(s))
         .filter(Boolean);
-    const rawFileName = segments.pop() || "downloaded_file";
+    const rawFileName = pathSegments.pop() || sanitizeSegment(task.fileName || "downloaded_file");
+    const folderSegments = pathSegments.length >= 2 ? pathSegments : [courseSeg, sectionSeg];
 
     let currentDir = dirHandle;
-    for (const seg of segments) {
+    // 若使用者選擇的是系統根目錄（如 Downloads / 下載 / 桌面），自動在其下建立 eeclass_教材 子資料夾
+    if (/^(downloads|下載|desktop|桌面|documents|文件)$/i.test(String(dirHandle.name || "").trim())) {
+        currentDir = await currentDir.getDirectoryHandle(DEFAULT_SUBFOLDER, { create: true });
+    }
+    for (const seg of folderSegments) {
         currentDir = await currentDir.getDirectoryHandle(seg, { create: true });
     }
 
@@ -315,7 +564,7 @@ async function writeTaskToHandle(dirHandle, task, conflictAction = "uniquify") {
         resp.headers.get("content-disposition"),
         rawFileName
     );
-    const normalizedName = sanitizeSegment(ensureExtension(rawFileName, serverName));
+    const normalizedName = resolveFinalFileName(rawFileName, serverName);
     const finalFileName = await resolveUniqueFileName(currentDir, normalizedName, conflictAction);
 
     const fileHandle = await currentDir.getFileHandle(finalFileName, { create: true });
@@ -332,6 +581,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             return false;
         }
         EECLASS_CRYPTO_VAULT.loadDecryptedAuthConfig(request.pin ?? "")
+            .then((authConfig) => {
+                sendResponse({ status: "ok", authConfig });
+            })
+            .catch(() => {
+                sendResponse({ status: "error" });
+            });
+        return true;
+    }
+
+    if (request?.action === "request_library_credentials") {
+        if (!isTrustedLibrarySender(sender)) {
+            sendResponse({ status: "forbidden" });
+            return false;
+        }
+        EECLASS_CRYPTO_VAULT.loadDecryptedLibraryAuthConfig(request.pin ?? "")
             .then((authConfig) => {
                 sendResponse({ status: "ok", authConfig });
             })
@@ -578,6 +842,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return false;
     }
 
+    if (request?.action === "register_download_context") {
+        const ctx = request.context || {};
+        const entry = {
+            url: ctx.url || "",
+            courseName: sanitizeSegment(ctx.courseName || "eeclass_Course"),
+            section: sanitizeSegment(ctx.section || "未分類單元"),
+            fileName: ctx.fileName ? sanitizeSegment(ctx.fileName) : "",
+            targetDirectory: ctx.targetDirectory || cachedStudentConfig.targetDirectory || DEFAULT_SUBFOLDER,
+            conflictAction: ctx.conflictAction || cachedStudentConfig.conflictAction || "uniquify",
+            bypassArchive: Boolean(ctx.bypassArchive),
+            time: Date.now(),
+        };
+        const uKey = normalizeUrlKey(entry.url);
+        if (uKey) {
+            recentClickContextByUrl.set(uKey, entry);
+        }
+        lastClickedContext = entry;
+        sendResponse({ ok: true });
+        return false;
+    }
+
+    if (request?.action === "register_page_context") {
+        const ctx = request.context || {};
+        latestEeclassPageContext = {
+            courseName: sanitizeSegment(ctx.courseName || "eeclass_Course"),
+            section: sanitizeSegment(ctx.section || "未分類單元"),
+            fileName: "",
+            targetDirectory: ctx.targetDirectory || cachedStudentConfig.targetDirectory || DEFAULT_SUBFOLDER,
+            conflictAction: ctx.conflictAction || cachedStudentConfig.conflictAction || "uniquify",
+            time: Date.now(),
+        };
+        sendResponse({ ok: true });
+        return false;
+    }
+
     if (request?.action === "download_files") {
         const tasks = Array.isArray(request.tasks) ? request.tasks : [];
         const targetDirectory = request.targetDirectory || DEFAULT_SUBFOLDER;
@@ -645,9 +944,12 @@ async function downloadQueue(tasks, options = {}) {
         fallbackToDefaultSubfolder = true;
     }
 
-    const effectiveDownloadSubfolder = fallbackToDefaultSubfolder
+    const rawSubfolder = fallbackToDefaultSubfolder
         ? DEFAULT_SUBFOLDER
         : (targetDirectory || DEFAULT_SUBFOLDER);
+    const effectiveDownloadSubfolder = /^(downloads|下載)$/i.test(String(rawSubfolder).trim())
+        ? DEFAULT_SUBFOLDER
+        : rawSubfolder;
 
     const destLabel = extDirHandle && !fallbackToDefaultSubfolder
         ? extDirHandle.name
@@ -664,18 +966,33 @@ async function downloadQueue(tasks, options = {}) {
 
     for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
+        const courseSeg = sanitizeSegment(task.courseName || "eeclass_Course");
+        const sectionSeg = sanitizeSegment(task.section || "未分類單元");
+        const fileSeg = sanitizeSegment(task.fileName || "downloaded_file");
+        const normalizedTaskPath = `${courseSeg}/${sectionSeg}/${fileSeg}`;
+
         await updateLiveProgress({
             active: true,
             type: "download",
             title: `正在儲存教材 (${i + 1}/${tasks.length})`,
-            detail: `${task.courseName || ""} / ${task.fileName || task.path || ""}`,
+            detail: `${courseSeg} / ${sectionSeg} / ${fileSeg}`,
             current: i,
             total: tasks.length,
         });
 
         if (extDirHandle) {
             try {
-                await writeTaskToHandle(extDirHandle, task, conflictAction);
+                await writeTaskToHandle(
+                    extDirHandle,
+                    {
+                        ...task,
+                        courseName: courseSeg,
+                        section: sectionSeg,
+                        fileName: fileSeg,
+                        path: normalizedTaskPath,
+                    },
+                    conflictAction
+                );
                 succeededUrls.push(task.url);
                 continue;
             }
@@ -687,7 +1004,22 @@ async function downloadQueue(tasks, options = {}) {
         }
 
         const subDir = fallbackToDefaultSubfolder ? DEFAULT_SUBFOLDER : effectiveDownloadSubfolder;
-        const filename = buildFinalDownloadPath(task.path, subDir);
+        const filename = buildFinalDownloadPath(normalizedTaskPath, subDir);
+        const taskMeta = {
+            url: task.url,
+            courseName: courseSeg,
+            section: sectionSeg,
+            fileName: fileSeg,
+            path: normalizedTaskPath,
+            targetDirectory: subDir,
+            conflictAction,
+            claimed: false,
+            createdAt: Date.now(),
+        };
+
+        enqueuePendingDownload(taskMeta);
+        activeSequentialTaskMeta = taskMeta;
+
         try {
             const ok = await new Promise((resolve) => {
                 chrome.downloads.download(
@@ -700,8 +1032,12 @@ async function downloadQueue(tasks, options = {}) {
                     (downloadId) => {
                         if (chrome.runtime.lastError || !downloadId) {
                             console.error("下載失敗：", filename, chrome.runtime.lastError?.message);
+                            taskMeta.claimed = true;
                             resolve(false);
                             return;
+                        }
+                        if (!taskMeta.claimed) {
+                            pendingDownloadsById.set(downloadId, taskMeta);
                         }
                         resolve(true);
                     }
@@ -717,7 +1053,13 @@ async function downloadQueue(tasks, options = {}) {
         }
         catch (err) {
             console.error("下載失敗：", task, err);
+            taskMeta.claimed = true;
             failedUrls.push(task.url);
+        }
+        finally {
+            if (activeSequentialTaskMeta === taskMeta) {
+                activeSequentialTaskMeta = null;
+            }
         }
     }
 

@@ -1,0 +1,80 @@
+name: Publish Chrome extension
+
+# Trigger: push a version tag, e.g. `git tag v1.4.1 && git push origin v1.4.1`.
+# The tag must equal "v" + manifest.json version, or the packager fails.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # needed to create the GitHub release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Package and validate extension
+        run: node scripts/package-extension.mjs
+
+      - name: Get Chrome Web Store access token
+        id: token
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          ACCESS_TOKEN=$(curl -fsS https://oauth2.googleapis.com/token \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" | jq -r '.access_token')
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "::error::Failed to obtain access token (check CWS_* secrets / refresh token expiry)"
+            exit 1
+          fi
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "access_token=$ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload package to Chrome Web Store
+        env:
+          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          RESULT=$(curl -fsS -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T dist/extension.zip \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXTENSION_ID")
+          echo "$RESULT"
+          echo "$RESULT" | jq -e '.uploadState == "SUCCESS"' > /dev/null \
+            || { echo "::error::Upload failed"; exit 1; }
+
+      - name: Publish to trusted testers
+        env:
+          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          # publishTarget=trustedTesters keeps the item Private (only your tester list can install it).
+          RESULT=$(curl -fsS -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXTENSION_ID/publish?publishTarget=trustedTesters")
+          echo "$RESULT"
+          echo "$RESULT" | jq -e '.status | any(test("OK|PENDING"))' > /dev/null \
+            || { echo "::error::Publish returned an unexpected status"; exit 1; }
+
+      - name: Create GitHub release with package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/extension.zip \
+            --title "$GITHUB_REF_NAME" --generate-notes

@@ -809,6 +809,83 @@
         flashAutoSave("已清除帳密");
     });
 
+    // 圖書館自動登入：與 eeclass 帳密分開，獨立加密儲存
+    const libraryForm = document.getElementById("library-cred-form");
+    const libraryIdInput = document.getElementById("library-id");
+    const libraryPasswordInput = document.getElementById("library-password");
+    const librarySwitch = document.getElementById("library-autologin-switch");
+    const libraryStatus = document.getElementById("library-status");
+    const libraryClearBtn = document.getElementById("library-clear-btn");
+    let libraryAutoLogin = true;
+
+    async function refreshLibraryCredentialUI() {
+        if (!vaultApi || !libraryForm) {
+            return;
+        }
+        const cfg = await vaultApi.loadDecryptedLibraryAuthConfig("").catch(() => null);
+        if (!cfg) {
+            return;
+        }
+        libraryAutoLogin = cfg.autoLogin !== false;
+        libraryIdInput.value = cfg.id || "";
+        librarySwitch?.setAttribute("aria-checked", String(libraryAutoLogin));
+        if (cfg.locked) {
+            libraryStatus.textContent = "已加密儲存，需先解鎖自訂金鑰才能使用";
+        }
+        else if (cfg.password) {
+            libraryStatus.textContent = "已加密儲存圖書館帳密";
+        }
+        else {
+            libraryStatus.textContent = cfg.id ? "已儲存帳號，尚未儲存密碼" : "尚未設定圖書館帳密";
+        }
+    }
+
+    librarySwitch?.addEventListener("click", async () => {
+        libraryAutoLogin = librarySwitch.getAttribute("aria-checked") !== "true";
+        librarySwitch.setAttribute("aria-checked", String(libraryAutoLogin));
+        const res = await chrome.storage.local.get([vaultApi.LIBRARY_AUTH_STORAGE_KEY]);
+        const rawRecord = res?.[vaultApi.LIBRARY_AUTH_STORAGE_KEY] ?? {};
+        rawRecord.autoLogin = libraryAutoLogin;
+        await chrome.storage.local.set({ [vaultApi.LIBRARY_AUTH_STORAGE_KEY]: rawRecord });
+        flashAutoSave();
+    });
+
+    libraryForm?.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        if (!vaultApi) {
+            return;
+        }
+        const id = libraryIdInput.value.trim();
+        const typedPassword = libraryPasswordInput.value;
+        const existing = await vaultApi.loadDecryptedLibraryAuthConfig("").catch(() => ({}));
+        if (!typedPassword && existing.locked) {
+            flashAutoSave("請先解鎖自訂金鑰，或重新輸入密碼");
+            return;
+        }
+        await vaultApi.saveLibraryAuthSecurely({
+            id,
+            password: typedPassword || existing.password || "",
+            autoLogin: libraryAutoLogin,
+            masterPin: masterPinInput?.value ?? "",
+        });
+        libraryPasswordInput.value = "";
+        await refreshLibraryCredentialUI();
+        flashAutoSave("已加密儲存圖書館帳密");
+    });
+
+    libraryClearBtn?.addEventListener("click", async () => {
+        libraryIdInput.value = "";
+        libraryPasswordInput.value = "";
+        await vaultApi?.saveLibraryAuthSecurely({
+            id: "",
+            password: "",
+            autoLogin: libraryAutoLogin,
+            masterPin: "",
+        });
+        await refreshLibraryCredentialUI();
+        flashAutoSave("已清除圖書館帳密");
+    });
+
     // 進階資安：自訂加密金鑰表單
     advancedPinForm?.addEventListener("submit", async (ev) => {
         ev.preventDefault();
@@ -1480,6 +1557,7 @@
 
         await tryStep("讀取帳號保險箱", () => refreshAuthFromVault(""));
         await tryStep("載入日曆狀態", () => refreshCalendarStatus(false));
+        await tryStep("載入圖書館帳密", () => refreshLibraryCredentialUI());
 
         chrome.storage.local.get(
             [STUDENT_CONFIG_KEY, TA_CONFIG_KEY, SYNCED_URLS_KEY, LIVE_PROGRESS_KEY],

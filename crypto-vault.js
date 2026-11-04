@@ -309,6 +309,51 @@
         };
     }
 
+    // ==================== 圖書館帳密（與 eeclass 帳密分開儲存，同樣使用 AES-GCM 加密） ====================
+    const LIBRARY_AUTH_STORAGE_KEY = "libraryAuthConfig";
+
+    async function saveLibraryAuthSecurely({
+        id = "",
+        password = "",
+        autoLogin = true,
+        masterPin = "",
+    } = {}) {
+        const vault = password
+            ? await encryptSecrets({ password, cid: "" }, masterPin)
+            : null;
+
+        const record = {
+            autoLogin: Boolean(autoLogin),
+            id: String(id ?? "").trim(),
+            hasSavedPassword: Boolean(password),
+            vault,
+        };
+        await chrome.storage.local.set({ [LIBRARY_AUTH_STORAGE_KEY]: record });
+        return record;
+    }
+
+    async function loadDecryptedLibraryAuthConfig(providedPin = "") {
+        const res = await chrome.storage.local.get([LIBRARY_AUTH_STORAGE_KEY]);
+        const config = res?.[LIBRARY_AUTH_STORAGE_KEY] ?? {};
+        if (!config.vault) {
+            return {
+                autoLogin: config.autoLogin !== false,
+                id: config.id ?? "",
+                password: "",
+                vaultMode: "none",
+                locked: false,
+            };
+        }
+        const decrypted = await decryptSecrets(config.vault, providedPin);
+        return {
+            autoLogin: config.autoLogin !== false,
+            id: config.id ?? "",
+            password: decrypted.password,
+            vaultMode: config.vault.mode || "device_key",
+            locked: Boolean(decrypted.locked),
+        };
+    }
+
     globalScope.EECLASS_CRYPTO_VAULT = {
         encryptSecrets,
         decryptSecrets,
@@ -316,5 +361,8 @@
         saveAuthConfigSecurely,
         loadDecryptedAuthConfig,
         clearSessionPinKey,
+        saveLibraryAuthSecurely,
+        loadDecryptedLibraryAuthConfig,
+        LIBRARY_AUTH_STORAGE_KEY,
     };
 })(globalThis);

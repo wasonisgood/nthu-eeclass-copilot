@@ -60,6 +60,30 @@
         return false;
     }
 
+    // 偵測到擴充功能後，自動開啟設定精靈（每個瀏覽器工作階段只做一次，避免重複開啟分頁）
+    async function launchWizardOnce(ext) {
+        const KEY = "eeclass_guide_wizard_launched";
+        try {
+            if (sessionStorage.getItem(KEY)) return;
+            sessionStorage.setItem(KEY, "1");
+        } catch (e) {}
+        try {
+            const res = await fetch(`${BRIDGE_BASE_URL}/extension/open-wizard`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: "mcp_setup_" + Date.now(), caller: "Claude Desktop MCP" })
+            });
+            const data = await res.json();
+            if (setupStatusText) {
+                setupStatusText.textContent = data.success
+                    ? "已自動開啟設定精靈，請切換至 Chrome 的精靈分頁"
+                    : `無法自動開啟精靈：${data.error || "未知錯誤"}`;
+            }
+        } catch (e) {
+            if (setupStatusText) setupStatusText.textContent = "無法連線到本機橋接服務，請確認 Claude Desktop 的 MCP 已啟動";
+        }
+    }
+
     // 3. 識別成功處理
     function onExtensionIdentified(ext, isLiveConnected = false) {
         cachedDetectedExt = ext;
@@ -99,6 +123,7 @@
         if (btnVerifyAndLaunch) {
             btnVerifyAndLaunch.textContent = "重新整理狀態";
         }
+        launchWizardOnce(ext);
     }
 
     // 4. 點擊啟動全螢幕設定精靈

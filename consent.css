@@ -1,0 +1,435 @@
+/**
+ * NTHU eeclass Copilot - 授權許可確認頁面樣式表
+ * 風格特色：簡約學院風格、深沉校系紫 (#70146e / #9F5FA5)、無卡通 Emoji、清爽俐落
+ */
+
+:root {
+    --primary-purple: #70146e;
+    --primary-purple-hover: #590f58;
+    --accent-purple: #9F5FA5;
+    --accent-purple-light: #f7eff8;
+    --bg-page: #f8f9fa;
+    --bg-card: #ffffff;
+    --border-color: #e5e7eb;
+    --border-focus: #9F5FA5;
+    --text-primary: #1f2937;
+    --text-secondary: #4b5563;
+    --text-muted: #6b7280;
+    --danger-red: #b91c1c;
+    --danger-bg: #fef2f2;
+    --danger-border: #fecaca;
+    --success-green: #15803d;
+    --success-bg: #f0fdf4;
+    --success-border: #bbf7d0;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 16px;
+}
+
+.consent-container {
+    width: 100%;
+    max-width: 680px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 頂部標題 */
+.consent-header {
+    background: #ffffff;
+    border-bottom: 2px solid var(--primary-purple);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-icon {
+    color: var(--primary-purple);
+    flex-shrink: 0;
+}
+
+.header-titles {
+    display: flex;
+    flex-direction: column;
+}
+
+.header-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-purple);
+    letter-spacing: 0.5px;
+}
+
+.header-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.header-security-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--success-green);
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--success-green);
+    border-radius: 50%;
+}
+
+/* 橫幅 */
+.notice-banner {
+    background: var(--accent-purple-light);
+    border-bottom: 1px solid #ebd4ed;
+    padding: 10px 24px;
+    font-size: 13px;
+    color: var(--primary-purple);
+}
+
+/* 主要區塊 */
+.consent-body {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* 卡片 */
+.card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    padding: 16px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.role-badge {
+    background: var(--primary-purple);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.code-badge {
+    background: #f3f4f6;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-family: monospace;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.course-main-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.course-sub-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 16px;
+}
+
+.course-sub-info strong {
+    color: var(--text-primary);
+}
+
+.role-warning-box {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    border-radius: var(--radius-sm);
+    color: var(--danger-red);
+    font-size: 12px;
+}
+
+.action-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.action-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* Payload 表格 */
+.payload-card {
+    background: #fafafa;
+}
+
+.badge-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: #e5e7eb;
+    padding: 1px 6px;
+    border-radius: 10px;
+}
+
+.payload-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: #ffffff;
+}
+
+.payload-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.payload-table th {
+    background: #f9fafb;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.payload-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+    color: var(--text-primary);
+}
+
+.payload-table tr:last-child td {
+    border-bottom: none;
+}
+
+.field-name {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.field-value {
+    word-break: break-all;
+    white-space: pre-wrap;
+    font-family: inherit;
+}
+
+.field-value-rich {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+/* 授權選擇說明與按鈕 */
+.consent-choice-section {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.choice-tip {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: #f9fafb;
+    border: 1px solid var(--border-color);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+}
+
+.choice-tip ul {
+    margin-top: 4px;
+    padding-left: 18px;
+}
+
+.choice-tip li {
+    margin-bottom: 3px;
+}
+
+.consent-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 按鈕風格 */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.btn-secondary {
+    background: #ffffff;
+    border-color: #d1d5db;
+    color: var(--text-secondary);
+}
+
+.btn-secondary:hover {
+    background: #f3f4f6;
+    color: var(--text-primary);
+}
+
+.btn-primary {
+    background: var(--accent-purple);
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background: #894b8e;
+}
+
+.btn-accent {
+    background: var(--primary-purple);
+    color: #ffffff;
+}
+
+.btn-accent:hover {
+    background: var(--primary-purple-hover);
+}
+
+/* 狀態面板 */
+.state-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    gap: 12px;
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #ebd4ed;
+    border-top-color: var(--primary-purple);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.error-panel svg {
+    color: var(--danger-red);
+}
+
+.error-panel h3 {
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.error-panel p {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.success-panel svg {
+    color: var(--success-green);
+}
+
+.success-panel h3 {
+    color: var(--success-green);
+    font-size: 18px;
+}
+
+.success-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    font-size: 12px;
+}
+
+.mode-badge {
+    background: #dcfce7;
+    color: var(--success-green);
+    border: 1px solid #bbf7d0;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.close-btn {
+    margin-top: 10px;
+}
+
+/* 頁尾 */
+.consent-footer {
+    border-top: 1px solid var(--border-color);
+    background: #f9fafb;
+    padding: 10px 24px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+}
