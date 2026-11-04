@@ -1,6 +1,28 @@
 "use strict";
 
 (function initOptionsApp() {
+    // 錯誤橫幅：頁面任何未處理的例外都會顯示在畫面頂端，避免整頁空白卻看不出原因
+    function showFatalBanner(message) {
+        try {
+            let bar = document.getElementById("fatal-error-banner");
+            if (!bar) {
+                bar = document.createElement("div");
+                bar.id = "fatal-error-banner";
+                bar.setAttribute("role", "alert");
+                bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;font:13px/1.5 sans-serif;padding:10px 14px;white-space:pre-wrap;word-break:break-all;";
+                (document.body || document.documentElement).appendChild(bar);
+            }
+            bar.textContent = "頁面發生錯誤（請回報此訊息）：\n" + message;
+        } catch (e) { /* 橫幅本身失敗時不再處理 */ }
+    }
+    window.addEventListener("error", (e) => {
+        showFatalBanner(`${e.message || "未知錯誤"}\n${e.filename || ""}:${e.lineno || 0}`);
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+        const r = e.reason;
+        showFatalBanner(`${(r && (r.message || r.name)) || String(r)}\n${(r && r.stack) ? r.stack.split("\n").slice(0, 3).join("\n") : ""}`);
+    });
+
     const AUTH_STORAGE_KEY = "eeclassAuthConfig";
     const STUDENT_CONFIG_KEY = "eeclassStudentConfig";
     const TA_CONFIG_KEY = "eeclassTaConfig";
@@ -612,6 +634,29 @@
         const splitW = Math.max(460, Math.round(availW * 0.34));
         const mainW = availW - splitW;
 
+        const currentWin = await new Promise((resolve) => {
+            chrome.windows.getCurrent((w) => resolve(w || null));
+        });
+
+        // 從完整設定頁按下：不切割原視窗，只開一個獨立並排設定視窗，並關閉原設定頁，避免同時出現兩個設定頁
+        if (viewMode !== "popup") {
+            chrome.windows.create({
+                url: chrome.runtime.getURL("options.html?mode=split"),
+                type: "popup",
+                left: mainW,
+                top: 0,
+                width: splitW,
+                height: availH,
+            });
+            const selfTab = await new Promise((resolve) => {
+                chrome.tabs.getCurrent((t) => resolve(t || null));
+            });
+            if (selfTab?.id !== undefined) {
+                chrome.tabs.remove(selfTab.id);
+            }
+            return;
+        }
+
         if (targetNormalWin?.id !== undefined) {
             chrome.windows.update(targetNormalWin.id, {
                 state: "normal",
@@ -622,11 +667,7 @@
             });
         }
 
-        const currentWin = await new Promise((resolve) => {
-            chrome.windows.getCurrent((w) => resolve(w || null));
-        });
-
-        if (viewMode === "popup" || currentWin?.type === "normal") {
+        if (currentWin?.type === "normal") {
             chrome.windows.create({
                 url: chrome.runtime.getURL("options.html?mode=split"),
                 type: "popup",
@@ -1427,8 +1468,18 @@
             switchSection(targetSection, targetBtn?.textContent.trim() || "Google 日曆與事件");
         }
 
-        await refreshAuthFromVault("");
-        await refreshCalendarStatus(false);
+        // 每個初始化步驟獨立執行：某一步失敗（例如保險箱讀取）不會讓日曆、課程設定等區塊整個空白
+        const tryStep = async (label, fn) => {
+            try {
+                return await fn();
+            } catch (e) {
+                console.error(`[options] ${label} 失敗：`, e);
+                return null;
+            }
+        };
+
+        await tryStep("讀取帳號保險箱", () => refreshAuthFromVault(""));
+        await tryStep("載入日曆狀態", () => refreshCalendarStatus(false));
 
         chrome.storage.local.get(
             [STUDENT_CONFIG_KEY, TA_CONFIG_KEY, SYNCED_URLS_KEY, LIVE_PROGRESS_KEY],
@@ -1448,10 +1499,9 @@
                 if (res?.[LIVE_PROGRESS_KEY]) {
                     renderLiveProgressCards(res[LIVE_PROGRESS_KEY]);
                 }
-                initTaControls();
-                syncTaControlsToDOM();
-                syncAllControlsToDOM();
-                await checkCurrentStudentFolderWritable(false);
+                await tryStep("初始化教師設定", () => { initTaControls(); syncTaControlsToDOM(); });
+                await tryStep("同步控制項", () => syncAllControlsToDOM());
+                await tryStep("檢查資料夾權限", () => checkCurrentStudentFolderWritable(false));
             }
         );
 
@@ -1489,13 +1539,8 @@
         if (receiptSession) receiptSession.textContent = sessionId;
 
         let scannedCourses = {
-            teachingCourses: [
-                { courseId: 35657, courseCode: "11310LAW100100", courseName: "行政法一", role: "assistant", identityLabel: "助教", permissions: "作業CRUD / 批改 / 測驗 / 公告" }
-            ],
-            studentCourses: [
-                { courseId: 38102, courseCode: "11310CS300100", courseName: "演算法", role: "student", identityLabel: "學生", permissions: "瀏覽 / 繳交" },
-                { courseId: 39420, courseCode: "11310GE100200", courseName: "科技與社會", role: "student", identityLabel: "學生", permissions: "瀏覽 / 繳交" }
-            ]
+            teachingCourses: [],
+            studentCourses: []
         };
 
         function setStep(stepNum) {
@@ -1519,6 +1564,17 @@
                     conn.classList.toggle("completed", i < stepNum);
                 }
             }
+        }
+
+        function isEeclassLoggedIn(html) {
+            if (!html || typeof html !== "string") return false;
+            if (html.includes("oauth.ccxp.nthu.edu.tw") || html.includes("校務資訊系統") || html.includes("請輸入密碼") || html.includes("captchaimg")) {
+                return false;
+            }
+            const hasMyCourses = html.includes("我的課程");
+            const hasLogout = html.includes("登出") || html.includes("logout");
+            const hasCourseLinks = /href=["'](?:\/course\/|https:\/\/eeclass\.nthu\.edu\.tw\/course\/)\d+["']/i.test(html);
+            return Boolean(hasMyCourses || hasLogout || hasCourseLinks);
         }
 
         // 1. 自動檢測是否已有儲存之帳密，若已有設定則直接前進步驟二實作登入
@@ -1547,7 +1603,7 @@
             if (hasStoredCredentials) {
                 const msg = document.getElementById("w-cred-msg");
                 if (msg) {
-                    msg.textContent = `✓ 已於本機保險箱偵測到儲存之校務憑證（學號：${savedId || "已加密"}），自動前進登入流程！`;
+                    msg.textContent = `✓ 已於本機保險箱偵測到儲存之校務憑證（學號：${savedId || "已加密"}），自動前進實體登入！`;
                     msg.style.color = "#10b981";
                 }
                 setTimeout(() => {
@@ -1601,14 +1657,61 @@
             setStep(1);
         });
 
-        const btnOpenEeclass = document.getElementById("w-btn-open-eeclass");
-        btnOpenEeclass?.addEventListener("click", () => {
-            if (chrome?.tabs?.create) {
-                chrome.tabs.create({ url: "https://eeclass.nthu.edu.tw", active: true });
-            } else {
+        /**
+         * 開啟 eeclass 首頁，點「校務資訊系統登入」進入 OAuth，
+         * 完成後由 OAuth 頁的自動登入（content.js）回到 eeclass。
+         */
+        async function openEclassLoginEntry() {
+            if (!(chrome && chrome.tabs && chrome.tabs.create)) {
                 window.open("https://eeclass.nthu.edu.tw", "_blank");
+                return { opened: true, clicked: false };
             }
-        });
+            const tab = await chrome.tabs.create({ url: "https://eeclass.nthu.edu.tw/", active: true });
+            await new Promise((resolve) => {
+                const done = (id, info) => {
+                    if (id === tab.id && info.status === "complete") {
+                        chrome.tabs.onUpdated.removeListener(done);
+                        resolve();
+                    }
+                };
+                chrome.tabs.onUpdated.addListener(done);
+                setTimeout(() => { chrome.tabs.onUpdated.removeListener(done); resolve(); }, 30000);
+            });
+            try {
+                const [inj] = await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: function clickSchoolLoginEntry() {
+                        return new Promise((resolve) => {
+                            const norm = (s) => (s || "").replace(/\s+/g, "");
+                            const find = () => {
+                                const els = Array.from(document.querySelectorAll("a, button"));
+                                return els.find(el => (el.getAttribute("href") || "").includes("oauth.ccxp.nthu.edu.tw"))
+                                    || els.find(el => /校務(資訊)?系統登入/.test(norm(el.textContent)));
+                            };
+                            let tries = 0;
+                            const timer = setInterval(() => {
+                                const el = find();
+                                tries++;
+                                if (el) {
+                                    clearInterval(timer);
+                                    el.click();
+                                    resolve({ clicked: true, text: norm(el.textContent).slice(0, 20) });
+                                } else if (tries > 60) {
+                                    clearInterval(timer);
+                                    resolve({ clicked: false, reason: "找不到校務資訊系統登入按鈕（可能已在 OAuth 登入頁）" });
+                                }
+                            }, 200);
+                        });
+                    }
+                });
+                return { opened: true, ...(inj && inj.result ? inj.result : { clicked: false }) };
+            } catch (e) {
+                return { opened: true, clicked: false, error: e.message };
+            }
+        }
+
+        const btnOpenEeclass = document.getElementById("w-btn-open-eeclass");
+        btnOpenEeclass?.addEventListener("click", () => { openEclassLoginEntry(); });
 
         const btnDoLogin = document.getElementById("w-btn-do-login");
         btnDoLogin?.addEventListener("click", () => {
@@ -1624,91 +1727,85 @@
             if (headline) headline.textContent = "正在向 eeclass 伺服器探測登入工作階段...";
             if (dot) dot.className = "pulse-indicator";
 
+            let isLoggedIn = false;
             try {
-                const resp = await fetch("https://eeclass.nthu.edu.tw/home.php", { credentials: "include" });
-                const text = await resp.text();
-                const isLoggedIn = !text.includes("login") || text.includes("我的課程") || text.includes("logout");
+                const text = (await globalThis.EeclassTransport.request("/home.php", {})).html;
+                isLoggedIn = isEeclassLoggedIn(text);
+            } catch (e) {
+                isLoggedIn = false;
+            }
 
-                if (isLoggedIn) {
-                    if (dot) dot.className = "pulse-indicator success";
-                    if (headline) headline.textContent = "✓ 已確認 eeclass 登入工作階段有效！";
-                    if (detail) detail.textContent = "擴充套件已成功與 eeclass 建立連線，即將為您掃描課程身分。";
-                    if (badge) {
-                        badge.textContent = "已連線登入";
-                        badge.className = "badge-pill";
-                    }
-
-                    setTimeout(() => {
-                        setStep(3);
-                        triggerCourseScan();
-                    }, 800);
-                    return;
-                }
-            } catch (e) {}
-
-            // 若尚未登入，且 autoOpenIfLoggedOut 為 true：在新分頁開啟 eeclass 進行自動驗證碼登入
-            if (autoOpenIfLoggedOut) {
-                if (dot) dot.className = "pulse-indicator active";
-                if (headline) headline.textContent = "正在開啟 eeclass 進行自動登入...";
-                if (detail) detail.textContent = "系統已在新分頁開啟 eeclass。進入 OAuth 時外掛將自動透過 CNN 辨識驗證碼並登入。本頁面正即時監聽登入完成狀態...";
+            if (isLoggedIn) {
+                if (dot) dot.className = "pulse-indicator success";
+                if (headline) headline.textContent = "✓ 已確認 eeclass 登入工作階段有效！";
+                if (detail) detail.textContent = "擴充套件已成功與 eeclass 建立連線，即將為您掃描真實課程身分。";
                 if (badge) {
-                    badge.textContent = "自動登入中";
+                    badge.textContent = "已連線登入";
                     badge.className = "badge-pill";
                 }
 
+                setTimeout(() => {
+                    setStep(3);
+                    triggerCourseScan();
+                }, 800);
+                return;
+            }
+
+            // 尚未登入！打開真正的 Chrome 分頁進入 eeclass
+            if (dot) dot.className = "pulse-indicator active";
+            if (headline) headline.textContent = "正在為您開啟 eeclass 分頁進行自動登入...";
+            if (detail) detail.textContent = "已為您在 Chrome 開啟 eeclass 頁面。進入 OAuth 時外掛將自動透過 CNN 辨識驗證碼並登入。本頁面正即時監聽登入完成狀態...";
+            if (badge) {
+                badge.textContent = "開啟登入中";
+                badge.className = "badge-pill";
+            }
+
+            try {
+                await openEclassLoginEntry();
+            } catch (e) {
+                window.open("https://eeclass.nthu.edu.tw", "_blank");
+            }
+
+            // 啟動輪詢監聽登入完成 (每 1.8 秒檢查一次，最多 45 秒)
+            if (loginPollTimer) clearInterval(loginPollTimer);
+            let pollCount = 0;
+            loginPollTimer = setInterval(async () => {
+                pollCount++;
                 try {
-                    if (chrome?.tabs?.create) {
-                        chrome.tabs.create({ url: "https://eeclass.nthu.edu.tw", active: true });
-                    } else {
-                        window.open("https://eeclass.nthu.edu.tw", "_blank");
-                    }
-                } catch (e) {
-                    window.open("https://eeclass.nthu.edu.tw", "_blank");
-                }
-
-                // 啟動輪詢監聽登入完成 (每 1.8 秒檢查一次，最多 45 秒)
-                if (loginPollTimer) clearInterval(loginPollTimer);
-                let pollCount = 0;
-                loginPollTimer = setInterval(async () => {
-                    pollCount++;
-                    try {
-                        const resp = await fetch("https://eeclass.nthu.edu.tw/home.php", { credentials: "include" });
-                        const text = await resp.text();
-                        const ok = !text.includes("login") || text.includes("我的課程") || text.includes("logout");
-                        if (ok) {
-                            clearInterval(loginPollTimer);
-                            loginPollTimer = null;
-
-                            if (dot) dot.className = "pulse-indicator success";
-                            if (headline) headline.textContent = "✓ eeclass 自動登入成功！";
-                            if (detail) detail.textContent = "已完成實體登入驗證，正在為您掃描並劃分所有課程身分...";
-                            if (badge) {
-                                badge.textContent = "已連線登入";
-                                badge.className = "badge-pill";
-                            }
-
-                            setTimeout(() => {
-                                setStep(3);
-                                triggerCourseScan();
-                            }, 800);
-                        }
-                    } catch (e) {}
-
-                    if (pollCount > 25) {
+                    const text = (await globalThis.EeclassTransport.request("/home.php", {})).html;
+                    if (isEeclassLoggedIn(text)) {
                         clearInterval(loginPollTimer);
                         loginPollTimer = null;
-                        if (headline) headline.textContent = "登入等待逾時，請手動確認";
-                        if (detail) detail.textContent = "請確認剛開啟的 eeclass 分頁是否已完成登入，完成後點擊「驗證登入狀態」。";
+
+                        if (dot) dot.className = "pulse-indicator success";
+                        if (headline) headline.textContent = "✓ eeclass 實體登入成功！";
+                        if (detail) detail.textContent = "已完成實體登入驗證，正在為您掃描並劃分所有真實課程身分...";
+                        if (badge) {
+                            badge.textContent = "已連線登入";
+                            badge.className = "badge-pill";
+                        }
+
+                        setTimeout(() => {
+                            setStep(3);
+                            triggerCourseScan();
+                        }, 800);
                     }
-                }, 1800);
-            } else {
-                if (dot) dot.className = "pulse-indicator";
-                if (headline) headline.textContent = "尚未登入 eeclass";
-                if (detail) detail.textContent = "請點擊「在新分頁開啟 eeclass」完成登入。";
-            }
+                } catch (e) {}
+
+                if (pollCount > 60) {
+                    clearInterval(loginPollTimer);
+                    loginPollTimer = null;
+                    if (headline) headline.textContent = "登入等待逾時，請手動確認";
+                    if (detail) detail.textContent = "請確認剛開啟的 eeclass 分頁是否已完成登入，完成後點擊「驗證登入狀態」。";
+                    if (badge) {
+                        badge.textContent = "等待手動確認";
+                        badge.className = "badge-pill";
+                    }
+                }
+            }, 1800);
         }
 
-        // 步驟三：掃描課程權限
+        // 步驟三：掃描真實課程權限
         document.getElementById("w-prev-to-2")?.addEventListener("click", () => setStep(2));
         const btnScanCourses = document.getElementById("w-btn-scan-courses");
         const btnConfirmCourses = document.getElementById("w-btn-confirm-courses");
@@ -1720,43 +1817,81 @@
             const teachingTable = document.getElementById("w-teaching-table");
             const studentTable = document.getElementById("w-student-table");
 
-            if (headline) headline.textContent = "正在自 eeclass 掃描課程清單並劃分身分...";
+            if (headline) headline.textContent = "正在自 eeclass 掃描真實課程清單並劃分身分...";
+
+            scannedCourses.teachingCourses = [];
+            scannedCourses.studentCourses = [];
+
+            let scan = null;
+            try {
+                scan = await globalThis.EeclassCourseScan.scanCourses({
+                    onProgress: (done, total) => {
+                        if (headline) headline.textContent = `正在逐一檢視課程身分（${done}/${total}）...`;
+                    }
+                });
+            } catch (e) {
+                if (headline) headline.textContent = `連線 eeclass 失敗：${e.message}`;
+                return;
+            }
 
             try {
-                const resp = await fetch("https://eeclass.nthu.edu.tw/home.php", { credentials: "include" });
-                const html = await resp.text();
-
-                const courseRegex = /<a[^>]*href=["'](?:\/course\/|https:\/\/eeclass\.nthu\.edu\.tw\/course\/)(\d+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-                const found = [];
-                const seenIds = new Set();
-                let match;
-
-                while ((match = courseRegex.exec(html)) !== null) {
-                    const cid = parseInt(match[1], 10);
-                    if (seenIds.has(cid) || isNaN(cid)) continue;
-                    seenIds.add(cid);
-
-                    const raw = match[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-                    const isTA = /助教|老師|教師/i.test(html.slice(Math.max(0, match.index - 150), match.index + 300));
-                    found.push({
-                        courseId: cid,
-                        courseCode: `CRS${cid}`,
-                        courseName: raw || `課程 #${cid}`,
-                        role: isTA ? "assistant" : "student",
-                        identityLabel: isTA ? "助教" : "學生",
-                        permissions: isTA ? "作業CRUD / 批改 / 測驗 / 公告" : "瀏覽 / 繳交"
-                    });
+                if (!scan.loggedIn) {
+                    if (headline) headline.textContent = "尚未偵測到 eeclass 登入狀態";
+                    if (dot) dot.className = "pulse-indicator";
+                    if (container) {
+                        container.hidden = false;
+                        container.innerHTML = `
+                            <div style="padding: 24px; text-align: center; color: #6b7280; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 6px; margin: 16px 0;">
+                                <p style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px;">${scan.message}</p>
+                                <p style="font-size: 13px; margin-bottom: 14px;">請在 Chrome 中完成 eeclass 登入後，回到此頁重新掃描。</p>
+                                <button type="button" class="pill-btn" id="w-btn-retry-login" style="margin-right: 8px;">在新分頁開啟 eeclass 登入</button>
+                                <button type="button" class="primary-btn" id="w-btn-retry-scan">重新掃描課程清單</button>
+                            </div>
+                        `;
+                        document.getElementById("w-btn-retry-login")?.addEventListener("click", () => {
+                            openEclassLoginEntry();
+                        });
+                        document.getElementById("w-btn-retry-scan")?.addEventListener("click", triggerCourseScan);
+                    }
+                    if (btnScanCourses) btnScanCourses.hidden = false;
+                    if (btnConfirmCourses) btnConfirmCourses.hidden = true;
+                    return;
                 }
 
-                if (found.length > 0) {
-                    scannedCourses.teachingCourses = found.filter(c => c.role === "assistant");
-                    scannedCourses.studentCourses = found.filter(c => c.role === "student");
-                }
-            } catch (e) {}
+                scannedCourses.teachingCourses = scan.teachingCourses;
+                scannedCourses.studentCourses = scan.studentCourses;
+                const found = scan.allCourses;
 
-            // 渲染表格
+                if (found.length === 0) {
+                    if (headline) headline.textContent = "⚠️ 未能自 eeclass 解析到課程清單";
+                    if (dot) dot.className = "pulse-indicator";
+                    if (container) {
+                        container.hidden = false;
+                        container.innerHTML = `
+                            <div style="padding: 24px; text-align: center; color: #6b7280; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 6px; margin: 16px 0;">
+                                <p style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px;">尚未在 eeclass 抓取到任何課程</p>
+                                <p style="font-size: 13px; margin-bottom: 14px;">請確認剛開啟的 eeclass 分頁是否已成功登入並進入「我的課程」主頁。</p>
+                                <button type="button" class="pill-btn" id="w-btn-retry-login" style="margin-right: 8px;">在新分頁開啟 eeclass 登入</button>
+                                <button type="button" class="primary-btn" id="w-btn-retry-scan">重新掃描課程清單</button>
+                            </div>
+                        `;
+                        document.getElementById("w-btn-retry-login")?.addEventListener("click", () => {
+                            openEclassLoginEntry();
+                        });
+                        document.getElementById("w-btn-retry-scan")?.addEventListener("click", triggerCourseScan);
+                    }
+                    if (btnScanCourses) btnScanCourses.hidden = false;
+                    if (btnConfirmCourses) btnConfirmCourses.hidden = true;
+                    return;
+                }
+            } catch (e) {
+                if (headline) headline.textContent = `連線 eeclass 失敗：${e.message}`;
+                return;
+            }
+
+            // 渲染真實課程表格
             if (teachingTable) {
-                teachingTable.innerHTML = `<table>
+                teachingTable.innerHTML = scannedCourses.teachingCourses.length > 0 ? `<table>
                     <thead><tr><th>課程 ID</th><th>課程代號</th><th>課程名稱</th><th>身分角色</th><th>授權權限</th></tr></thead>
                     <tbody>${scannedCourses.teachingCourses.map(c => `<tr>
                         <td><code>${c.courseId}</code></td>
@@ -1765,11 +1900,11 @@
                         <td><span class="badge-pill" style="color:#9F5FA5;background:rgba(159,95,165,0.12)">${c.identityLabel}</span></td>
                         <td>${c.permissions}</td>
                     </tr>`).join("")}</tbody>
-                </table>`;
+                </table>` : `<p style="font-size: 13px; color: #6b7280; padding: 10px 0;">目前無所屬之助教或教師課程</p>`;
             }
 
             if (studentTable) {
-                studentTable.innerHTML = `<table>
+                studentTable.innerHTML = scannedCourses.studentCourses.length > 0 ? `<table>
                     <thead><tr><th>課程 ID</th><th>課程代號</th><th>課程名稱</th><th>身分角色</th><th>授權權限</th></tr></thead>
                     <tbody>${scannedCourses.studentCourses.map(c => `<tr>
                         <td><code>${c.courseId}</code></td>
@@ -1778,7 +1913,7 @@
                         <td><span class="badge-pill">${c.identityLabel}</span></td>
                         <td>${c.permissions}</td>
                     </tr>`).join("")}</tbody>
-                </table>`;
+                </table>` : `<p style="font-size: 13px; color: #6b7280; padding: 10px 0;">目前無修課學生課程</p>`;
             }
 
             const teachingCount = document.getElementById("w-teaching-count");
@@ -1787,7 +1922,9 @@
             if (studentCount) studentCount.textContent = `${scannedCourses.studentCourses.length} 門課程`;
 
             if (container) container.hidden = false;
-            if (headline) headline.textContent = `✓ 掃描完成！共識別 ${scannedCourses.teachingCourses.length + scannedCourses.studentCourses.length} 門課程`;
+            const total = scannedCourses.teachingCourses.length + scannedCourses.studentCourses.length;
+            const unverifiedCount = scan.unverifiedCourses.length;
+            if (headline) headline.textContent = `✓ 掃描完成！共識別 ${total} 門真實課程（助教/教師 ${scannedCourses.teachingCourses.length} 門，學生 ${scannedCourses.studentCourses.length} 門）${unverifiedCount ? `；另有 ${unverifiedCount} 門無法確認身分，未納入權限` : ""}`;
             if (dot) dot.className = "pulse-indicator success";
 
             if (btnScanCourses) btnScanCourses.hidden = true;
