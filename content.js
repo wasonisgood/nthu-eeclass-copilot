@@ -13,6 +13,20 @@
     const OVERLAY_STYLE_ID = "eeclass-oauth-waiting-style";
     const OVERLAY_ROOT_ID = "eeclass-oauth-waiting-overlay";
 
+    // 依 OAuth 授權網址的 client_id 決定畫面上顯示的系統名稱（elearn 與 eeclass 共用同一套登入）
+    function getServiceName(targetDocument) {
+        try {
+            const clientId = new URL(targetDocument.location.href).searchParams.get("client_id") ?? "";
+            if (clientId.toLowerCase() === "elearn") {
+                return "elearn 數位學習平台";
+            }
+        }
+        catch {
+            // 網址解析失敗時沿用預設名稱
+        }
+        return "eeclass 數位學習平台";
+    }
+
     const captchaAutofillStateByDocument = new WeakMap();
     const captchaAttachmentByDocument = new WeakMap();
 
@@ -198,7 +212,7 @@
             overlay.setAttribute("aria-live", "polite");
             overlay.innerHTML = `
                 <div class="eeclass-wait-card">
-                    <h2 class="eeclass-wait-title">eeclass 數位學習平台</h2>
+                    <h2 class="eeclass-wait-title">${getServiceName(targetDocument)}</h2>
                     <p class="eeclass-wait-subtitle">清華大學校務資訊系統自動驗證中</p>
                     <div class="eeclass-wait-spinner-wrap">
                         <div class="eeclass-wait-spinner"></div>
@@ -430,7 +444,7 @@
         showWaitingOverlay(
             targetDocument,
             "驗證完成，正在登入系統...",
-            "即將自動跳轉至 eeclass 數位學習平台",
+            `即將自動跳轉至 ${getServiceName(targetDocument)}`,
             100,
             {
                 onCancel: () => {

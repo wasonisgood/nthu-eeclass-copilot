@@ -1,6 +1,6 @@
 "use strict";
 
-importScripts("crypto-vault.js", "calendar-sync.js", "eeclass-extension-server.js", "eeclass-transport.js", "course-scan.js", "eeclass-live.js", "eeclass-ui.js", "mcp-bridge-client.js");
+importScripts("crypto-vault.js", "calendar-sync.js", "eeclass-extension-server.js", "eeclass-transport.js", "course-scan.js", "eeclass-live.js", "eeclass-ui.js", "login-state.js", "mcp-bridge-client.js");
 
 const { EECLASS_CRYPTO_VAULT, EECLASS_CALENDAR_SYNC } = globalThis;
 
@@ -151,6 +151,21 @@ function isTrustedOauthSender(sender) {
 }
 
 // 圖書館自動登入只允許圖書館網站與校務 IDM 登入頁的頂層框架取得帳密
+function isTrustedCcxpSender(sender) {
+    if (!sender || sender.id !== chrome.runtime.id || sender.frameId !== 0) {
+        return false;
+    }
+    try {
+        const parsed = new URL(sender.url || sender.tab?.url || "");
+        return parsed.protocol === "https:" &&
+            parsed.hostname.toLowerCase() === "www.ccxp.nthu.edu.tw" &&
+            /^\/ccxp\/INQUIRE\//i.test(parsed.pathname);
+    }
+    catch {
+        return false;
+    }
+}
+
 function isTrustedLibrarySender(sender) {
     if (!sender || sender.id !== chrome.runtime.id || sender.frameId !== 0) {
         return false;
@@ -577,6 +592,22 @@ async function writeTaskToHandle(dirHandle, task, conflictAction = "uniquify") {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request?.action === "request_oauth_credentials") {
         if (!isTrustedOauthSender(sender)) {
+            sendResponse({ status: "forbidden" });
+            return false;
+        }
+        EECLASS_CRYPTO_VAULT.loadDecryptedAuthConfig(request.pin ?? "")
+            .then((authConfig) => {
+                sendResponse({ status: "ok", authConfig });
+            })
+            .catch(() => {
+                sendResponse({ status: "error" });
+            });
+        return true;
+    }
+
+    // 校務資訊系統（www.ccxp.nthu.edu.tw）登入頁：與 eeclass 相同的校務系統帳密，直接沿用 eeclass 的加密儲存
+    if (request?.action === "request_ccxp_credentials") {
+        if (!isTrustedCcxpSender(sender)) {
             sendResponse({ status: "forbidden" });
             return false;
         }

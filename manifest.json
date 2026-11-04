@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NTHU eeclass Copilot｜清大數位學習全能助手",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "清大 eeclass 與 OAuth 全能助手：CNN 驗證碼自動登入、AES-GCM 憑證保險箱、Google 日曆作業事件即時同步、課程教材自動同步歸檔與助教工作台",
   "permissions": [
     "storage",
@@ -10,12 +10,15 @@
     "identity",
     "alarms",
     "scripting",
-    "tabs"
+    "tabs",
+    "cookies"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
     "https://oauth.ccxp.nthu.edu.tw/*",
+    "https://www.ccxp.nthu.edu.tw/*",
+    "https://idm.nthu.ust.edu.tw/*",
     "https://eeclass.nthu.edu.tw/*",
     "https://www.googleapis.com/*",
     "https://accounts.google.com/*"
@@ -55,11 +58,50 @@
     },
     {
       "matches": [
+        "https://nthu.edu.tw/*",
+        "https://*.nthu.edu.tw/*",
+        "https://nthu.ust.edu.tw/*",
+        "https://*.nthu.ust.edu.tw/*"
+      ],
+      "run_at": "document_idle",
+      "js": [
+        "library-captcha-model.js",
+        "library-captcha.js",
+        "ccxp-captcha-model.js",
+        "ccxp-captcha.js",
+        "decaptcha.model.js",
+        "decaptcha.js",
+        "captcha-kit.js",
+        "captcha-autofill.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.ccxp.nthu.edu.tw/ccxp/INQUIRE/*"
+      ],
+      "run_at": "document_idle",
+      "js": [
+        "ccxp-captcha-model.js",
+        "ccxp-captcha.js",
+        "ccxp-autologin.js"
+      ]
+    },
+    {
+      "matches": [
         "https://eeclass.nthu.edu.tw/"
       ],
       "run_at": "document_idle",
       "js": [
         "eeclass-home-autologin.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://elearn.nthu.edu.tw/*"
+      ],
+      "run_at": "document_idle",
+      "js": [
+        "elearn-home-autologin.js"
       ]
     },
     {

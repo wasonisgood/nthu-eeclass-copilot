@@ -85,6 +85,50 @@
     /**
      * 長輪詢處理分發核心
      */
+    // 登入狀態偵錯：在擴充功能的 service worker 內，用瀏覽器既有的 cookie 探測三個系統（不回傳 cookie 值）
+    async function runLoginProbe(params = {}) {
+        const { classify, TARGETS } = globalScope.NTHU_LOGIN_STATE;
+        const results = [];
+        // 指定 urls 時做臨時探測：未登入標記取所有系統的聯集，方便比對候選網址
+        const adhocUrls = Array.isArray(params.urls) ? params.urls.slice(0, 10).map(String) : [];
+        const targets = adhocUrls.length
+            ? adhocUrls.map((u) => ({
+                id: "adhoc",
+                label: "臨時探測",
+                probeUrl: u,
+                loginUrlPatterns: TARGETS.flatMap((t) => t.loginUrlPatterns),
+                loggedOutMarkers: TARGETS.flatMap((t) => t.loggedOutMarkers),
+                cookieDomains: [],
+            }))
+            : TARGETS;
+        // 安全規則：校務系統 select_entry.php 不能被擴充功能直接請求（沒有有效權杖的請求會被系統登出）
+        const isForbiddenCcxpUrl = (u) => /select_entry\.php/i.test(String(u ?? ""));
+        for (const target of targets) {
+            const probeUrl = target.probeUrl;
+            if (isForbiddenCcxpUrl(probeUrl)) {
+                results.push({ id: target.id, label: target.label, probeUrl, state: "UNKNOWN", reason: "已停用：select_entry.php 不能被擴充功能請求（會觸發登出）", finalUrl: "", status: 0 });
+                continue;
+            }
+            try {
+                const resp = await fetch(probeUrl, { credentials: "include", redirect: "follow", cache: "no-store" });
+                const html = (await resp.text()).slice(0, 200000);
+                const verdict = classify({ finalUrl: resp.url, status: resp.status, html }, target);
+                // 偵錯用的頁面文字摘要：標籤去除，連續數字（學號等）遮罩，避免把個人資料完整回傳
+                const snippet = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").replace(/\d{3,}/g, "###").trim().slice(0, 300);
+                results.push({ id: target.id, label: target.label, probeUrl, ...verdict, finalUrl: resp.url, status: resp.status, snippet });
+            }
+            catch (error) {
+                results.push({ id: target.id, label: target.label, probeUrl: target.probeUrl, state: "UNKNOWN", reason: String(error?.message ?? error), finalUrl: "", status: 0 });
+            }
+        }
+        const cookies = {};
+        for (const domain of [...new Set(TARGETS.flatMap((t) => t.cookieDomains))]) {
+            const list = await chrome.cookies.getAll({ domain });
+            cookies[domain] = list.map((c) => ({ name: c.name, secure: c.secure, httpOnly: c.httpOnly, session: c.session, sameSite: c.sameSite, path: c.path }));
+        }
+        return { results, cookies, checkedAt: new Date().toISOString() };
+    }
+
     async function handleIncomingCommand(cmd) {
         const { callId, action, params = {} } = cmd;
         let result = null;
@@ -279,6 +323,9 @@
                 result = await runLive(() => globalThis.EECLASS_EXTENSION_SERVER.dispatchApiRequest(params.request));
                 break;
 
+            case "login_probe":
+                result = await runLoginProbe(params);
+                break;
             default:
                 result = { error: `擴充功能不支援的指令：${action}` };
                 break;

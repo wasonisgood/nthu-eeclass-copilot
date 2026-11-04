@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登入狀態偵錯</title>
+<style>
+  body { font-family: "Microsoft JhengHei", sans-serif; margin: 24px; color: #222; background: #fafafa; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #666; font-size: 13px; margin-bottom: 16px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  th, td { border: 1px solid #ddd; padding: 8px 10px; font-size: 13px; vertical-align: top; text-align: left; }
+  th { background: #f3eef5; }
+  input[type=text] { width: 100%; box-sizing: border-box; font-size: 12px; padding: 4px; }
+  button { background: #7f1084; color: #fff; border: 0; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .state { font-weight: 700; }
+  .LOGGED_IN { color: #15803d; }
+  .LOGGED_OUT { color: #b91c1c; }
+  .UNKNOWN { color: #92400e; }
+  .muted { color: #888; }
+  pre { background: #fff; border: 1px solid #ddd; padding: 10px; font-size: 12px; overflow: auto; }
+  .row { margin-top: 16px; }
+</style>
+</head>
+<body>
+<h1>登入狀態偵錯</h1>
+<div class="sub">用同一個瀏覽器的 cookie 對每個系統發出探測請求，依最終網址與頁面內容判斷是否登入。cookie 只列名稱與屬性，不顯示值。</div>
+
+<table>
+  <thead>
+    <tr><th style="width:110px">系統</th><th>探測網址（可編輯）</th><th style="width:110px">操作</th><th style="width:110px">判斷</th><th>詳細</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div class="row">
+  <button id="probeAll">全部探測</button>
+  <button id="listCookies">列出 cookie 名稱</button>
+</div>
+
+<div class="row"><pre id="cookies" class="muted">（尚未列出）</pre></div>
+
+<script src="login-state.js"></script>
+<script src="login-probe.js"></script>
+</body>
+</html>
