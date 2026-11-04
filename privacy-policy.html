@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="index, follow">
+<meta name="description" content="NTHU eeclass Copilot 隱私權政策：資料只保存在本機，說明加密方式與傳送對象。">
+<title>eeclass Copilot 隱私權政策</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --bg: #f5f7f9;
+    --surface: #ffffff;
+    --fg: #111827;
+    --muted: #52606d;
+    --line: #dfe3e8;
+    --accent: #9f5fa5;
+    --accent-soft: #eee7f2;
+    --accent-line: #d9c6df;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #13161b;
+      --surface: #1b1f26;
+      --fg: #f1f3f5;
+      --muted: #a7b0ba;
+      --line: #2c323b;
+      --accent: #c48fd0;
+      --accent-soft: #2a2031;
+      --accent-line: #4d3a57;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #13161b;
+    --surface: #1b1f26;
+    --fg: #f1f3f5;
+    --muted: #a7b0ba;
+    --line: #2c323b;
+    --accent: #c48fd0;
+    --accent-soft: #2a2031;
+    --accent-line: #4d3a57;
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding-block: 48px 72px;
+  }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 32px; }
+  .brand { color: var(--accent); font-weight: 700; font-size: 14px; letter-spacing: 0.04em; margin: 0 0 8px; }
+  h1 { font-size: 30px; line-height: 1.3; margin: 0 0 12px; text-wrap: balance; }
+  .meta { color: var(--muted); font-size: 14px; margin: 0; }
+  h2 { font-size: 19px; margin: 40px 0 12px; line-height: 1.4; }
+  h3 { font-size: 16px; margin: 20px 0 6px; }
+  p, li { overflow-wrap: anywhere; }
+  ul { padding-left: 1.3em; margin: 8px 0; }
+  li + li { margin-top: 6px; }
+  a { color: var(--accent); }
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 0 0 8px;
+  }
+  .summary h2 { margin: 0 0 8px; font-size: 17px; }
+  .summary ul { margin: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    margin: 12px 0;
+    display: block;
+    overflow-x: auto;
+  }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-line);
+    border-radius: 5px;
+    padding: 1px 5px;
+    overflow-wrap: anywhere;
+  }
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="brand">NTHU eeclass Copilot</p>
+    <h1>隱私權政策</h1>
+    <p class="meta">最後更新：2026 年 11 月 4 日　·　適用版本：1.4.1</p>
+  </header>
+
+  <section class="summary" aria-label="重點摘要">
+    <h2>重點摘要</h2>
+    <ul>
+      <li>所有資料都只存在您自己的瀏覽器裡，本工具沒有自建的伺服器，開發者無法讀取您的資料。</li>
+      <li>學號、密碼與選填的身分證字號會以 AES-GCM 256 位元加密後保存，只用來登入清華大學相關網站。</li>
+      <li>作業與事件只會寫入您自己授權的 Google 日曆。</li>
+      <li>沒有廣告、沒有第三方分析工具，也不販售任何資料。</li>
+    </ul>
+  </section>
+
+  <h2>1. 開發者與適用範圍</h2>
+  <p>NTHU eeclass Copilot（以下簡稱「本工具」）是由 彭威翔（PENG WEIXIANG）開發的 Chrome 擴充功能，供國立清華大學學生與助教使用。本工具為非官方工具，與國立清華大學沒有官方隸屬關係。本政策說明本工具如何處理您的資料。</p>
+
+  <h2>2. 我們處理哪些資料</h2>
+  <table>
+    <thead>
+      <tr><th>資料</th><th>何時產生</th><th>用途</th><th>保存位置</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>學號與密碼</td><td>您選擇儲存帳號時</td><td>自動登入清華校務 OAuth 與 eeclass</td><td>本機，AES-GCM 256 加密</td></tr>
+      <tr><td>身分證字號</td><td>您在「跨校選修」欄位輸入時</td><td>跨校選修登入流程所需</td><td>本機，AES-GCM 256 加密</td></tr>
+      <tr><td>圖書館帳號與密碼</td><td>您選擇儲存圖書館帳號時</td><td>圖書館登入頁的自動填入</td><td>本機，AES-GCM 256 加密（與學校帳號分開保存）</td></tr>
+      <tr><td>Google 帳號電子郵件</td><td>您完成 Google 日曆授權時</td><td>在設定頁顯示目前綁定的帳號</td><td>本機</td></tr>
+      <tr><td>課程、作業與教材資訊</td><td>同步或下載時從 eeclass 讀取</td><td>寫入 Google 日曆、下載教材、顯示同步狀態</td><td>本機</td></tr>
+      <tr><td>設定值</td><td>您調整設定時</td><td>記住同步方式、提醒時間、教材存放位置等偏好</td><td>本機</td></tr>
+    </tbody>
+  </table>
+  <p>本工具不會收集您的瀏覽紀錄、按鍵內容、位置、通訊內容或健康與財務資料。</p>
+
+  <h2>3. 資料如何保存與加密</h2>
+  <ul>
+    <li><strong>加密方式</strong>：學號、密碼與身分證字號以 AES-GCM 256 位元加密後，存放在瀏覽器的 <code>chrome.storage.local</code>。</li>
+    <li><strong>金鑰</strong>：加密金鑰由瀏覽器的 WebCrypto 產生，設為不可匯出，存放在本工具專屬的 IndexedDB。金鑰無法被網頁或其他擴充功能讀出。</li>
+    <li><strong>自訂主密碼（選用）</strong>：您可以設定主密碼，本工具以 PBKDF2-SHA256（210,000 次迭代、128 位元隨機鹽值）衍生金鑰。解鎖狀態只保留在 <code>chrome.storage.session</code>，關閉瀏覽器後即清除。</li>
+  </ul>
+
+  <h2>4. 資料會傳送到哪裡</h2>
+  <table>
+    <thead>
+      <tr><th>對象</th><th>傳送的資料</th><th>說明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>清華大學 eeclass（eeclass.nthu.edu.tw）</td><td>您的登入資訊與課程請求</td><td>用於登入、讀取課程資料與下載教材。</td></tr>
+      <tr><td>清華校務 OAuth（oauth.ccxp.nthu.edu.tw）</td><td>學號、密碼與驗證碼</td><td>用於登入。驗證碼在您的瀏覽器內以本地模型辨識，不會上傳。</td></tr>
+      <tr><td>清華圖書館與 IDM 登入頁</td><td>圖書館帳號與密碼</td><td>僅在您開啟並儲存圖書館帳號後，用於自動填入登入表單。</td></tr>
+      <tr><td>Google Calendar API（googleapis.com）</td><td>作業與事件的標題、時間與連結</td><td>使用您自己授權的 Google 帳號寫入或更新日曆事件。</td></tr>
+      <tr><td>Google 授權服務（accounts.google.com）</td><td>OAuth 授權流程</td><td>取得日曆存取授權。</td></tr>
+      <tr><td>您電腦上的本機程式（127.0.0.1:3001）</td><td>課程資料（僅在有程式回應時）</td><td>見第 5 節。</td></tr>
+    </tbody>
+  </table>
+  <p>本工具不會把任何資料傳送到開發者或第三方的伺服器。</p>
+
+  <h2>5. 本機橋接功能</h2>
+  <p>本工具啟動後會定時連線到您電腦上的 <code>127.0.0.1:3001</code>，等待您自行執行的本機程式（例如 AI 助理的 MCP 橋接程式）傳來指令。如果該埠上沒有程式，連線會失敗，本工具不會傳送任何資料。若有程式回應，本工具會依其指令讀取 eeclass 課程資料並回傳給該本機程式。該程式與您的電腦之間的資料流由您自行管理，本工具不會把它傳送到外部伺服器。</p>
+
+  <h2>6. 權限用途</h2>
+  <ul>
+    <li><code>storage</code>：保存設定，以及加密後的學號、密碼與身分證字號。</li>
+    <li><code>downloads</code>：將您選擇的課程教材存到本機資料夾，依課程與單元分類。</li>
+    <li><code>sidePanel</code>：在瀏覽器側邊欄或分割視窗開啟設定頁。</li>
+    <li><code>identity</code>：取得 Google 日曆授權，並讀取目前綁定帳號的電子郵件地址。</li>
+    <li><code>alarms</code>：定時檢查作業與事件是否有異動，並更新 Google 日曆。</li>
+    <li><code>scripting</code>：在 eeclass 頁面中注入教材下載與同步進度的介面。</li>
+    <li><code>tabs</code>：查詢是否已開啟 eeclass 分頁；在背景開啟課程頁面讀取資料後關閉。不讀取其他網站的分頁。</li>
+  </ul>
+  <p>本工具只在上述清華大學網站與 Google 網域上運作，不會在您瀏覽的其他網站中讀取或修改內容。</p>
+
+  <h2>7. Google 日曆授權</h2>
+  <p>Google 日曆功能需要您自行在 Google Cloud 建立 OAuth 用戶端 ID，並填入本工具的設定頁。授權的存取權杖由 Chrome 的 identity 機制管理。本工具只要求日曆範圍（<code>https://www.googleapis.com/auth/calendar</code>）與電子郵件範圍（<code>userinfo.email</code>）。</p>
+
+  <h2>8. 遠端程式碼</h2>
+  <p>本工具不使用遠端程式碼。所有 JavaScript 與模型檔案都已包含在擴充功能套件中，本工具不會從網路下載並執行程式。</p>
+
+  <h2>9. 第三方服務</h2>
+  <p>eeclass、清華校務系統、圖書館與 Google 各自有其隱私權政策，您在這些服務中的資料處理依其規定。本工具只是代您操作這些服務，無法控制其資料保存方式。</p>
+
+  <h2>10. 您的控制權</h2>
+  <ul>
+    <li>在設定頁可隨時清除已儲存的帳號、密碼與身分證字號。</li>
+    <li>在 Google 帳號的「第三方存取權限」中可撤銷日曆授權。</li>
+    <li>解除安裝本工具，會刪除瀏覽器中本工具保存的所有設定與加密資料。</li>
+  </ul>
+
+  <h2>11. 兒童與未成年人</h2>
+  <p>本工具供大學學生與助教使用，並非針對 13 歲以下兒童設計，也不會蓄意收集兒童的個人資料。</p>
+
+  <h2>12. 政策變更</h2>
+  <p>若本政策有重大變更，我們會更新本頁的日期，並在擴充功能的版本說明中註明。</p>
+
+  <h2>13. 聯絡方式</h2>
+  <p>如對本政策或資料處理有任何疑問，請至 <a href="https://github.com/wasonisgood/nthu-eeclass-copilot/issues" target="_blank" rel="noopener">GitHub Issues</a> 開立議題。</p>
+
+  <footer>
+    NTHU eeclass Copilot　·　開發者：彭威翔（PENG WEIXIANG）　·　本工具為非官方工具
+  </footer>
+</div>
+</body>
+</html>
